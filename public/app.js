@@ -1,11 +1,29 @@
 /* Simple single-file frontend for SEMP prototype */
 const api = {
-  json: (path, opts={}) => {
+  json: (path, opts = {}) => {
+
     const token = localStorage.getItem('semp_token');
-    opts.headers = opts.headers || {};
-    if (token) opts.headers['Authorization'] = 'Bearer ' + token;
-    return fetch(path, Object.assign({headers: {'Content-Type':'application/json'}}, opts))
-      .then(r => r.json().catch(()=>({})).then(body => ({ status: r.status, body })));
+
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+
+    return fetch(path, {
+      ...opts,
+      headers
+    })
+        .then(r =>
+            r.json()
+                .catch(() => ({}))
+                .then(body => ({
+                  status: r.status,
+                  body
+                }))
+        );
   }
 };
 
@@ -41,15 +59,50 @@ function showRegistration(){
 
   document.getElementById('toLogin').onclick = showLogin;
   document.getElementById('doRegister').onclick = () => {
-    const email = document.getElementById('regEmail').value.trim();
-    const password = document.getElementById('regPass').value;
-    const role = document.getElementById('regRole').value;
-    if (!email || !password) return alert('Email + password required');
-    api.json('/api/register', { method: 'POST', body: JSON.stringify({email,password,role}) })
-      .then(res => {
-        if (res.status === 200 && res.body.success) { alert('Registered — please log in'); showLogin(); }
-        else alert(res.body.message || 'Registration error');
-      });
+
+    const emailField = document.getElementById('regEmail');
+    const passField = document.getElementById('regPass');
+    const roleField = document.getElementById('regRole');
+
+    const email = emailField ? emailField.value.trim() : '';
+    const password = passField ? passField.value : '';
+    const role = roleField ? roleField.value : 'Player';
+
+    console.log("EMAIL:", email);
+    console.log("PASSWORD:", password);
+    console.log("ROLE:", role);
+
+    if (!email || !password) {
+      alert('Email + password required');
+      return;
+    }
+
+    console.log("SENDING:");
+
+    console.log(JSON.stringify({
+      email,
+      password,
+      role
+    }));
+
+    api.json('/api/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        role
+      })
+    })
+        .then(res => {
+          console.log(res);
+
+          if (res.status === 200 && res.body.success) {
+            alert('Registered — please log in');
+            showLogin();
+          } else {
+            alert(res.body.message || 'Registration error');
+          }
+        });
   };
 }
 

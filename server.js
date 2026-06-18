@@ -28,11 +28,39 @@ function authFromHeader(req) {
 }
 
 app.post('/api/register', (req, res) => {
-  const { email, password, role } = req.body;
-  if (!email || !password) return res.status(400).json({ success: false, message: 'email and password required' });
-  if (users.has(email)) return res.status(409).json({ success: false, message: 'email already registered' });
-  users.set(email, { email, password, role: role || 'Player' });
-  return res.json({ success: true });
+
+  console.log("===== REGISTER REQUEST =====");
+  console.log("BODY:", req.body);
+
+  const { email, password, role } = req.body || {};
+
+  console.log("EMAIL:", email);
+  console.log("PASSWORD:", password);
+  console.log("ROLE:", role);
+
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: 'email and password required'
+    });
+  }
+
+  if (users.has(email)) {
+    return res.status(409).json({
+      success: false,
+      message: 'email already registered'
+    });
+  }
+
+  users.set(email, {
+    email,
+    password,
+    role: role || 'Player'
+  });
+
+  return res.json({
+    success: true
+  });
 });
 
 app.post('/api/login', (req, res) => {
