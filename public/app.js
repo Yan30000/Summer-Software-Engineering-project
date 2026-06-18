@@ -160,99 +160,525 @@ function initSidebar(){
 }
 
 function showDashboard(){
-  content.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Dashboard</h3>
-  </div><div id="cards" class="row g-3"></div>`;
-  // load events summary
+
+  content.innerHTML = `
+
+  <h2 class="mb-4">Dashboard</h2>
+
+  <div class="row mb-4">
+
+      <div class="col-md-4">
+          <div class="card stat-card">
+              <div class="stat-number" id="totalEvents">0</div>
+              <div>Total Events</div>
+          </div>
+      </div>
+
+      <div class="col-md-4">
+          <div class="card stat-card">
+              <div class="stat-number" id="registeredEvents">0</div>
+              <div>My Registrations</div>
+          </div>
+      </div>
+
+      <div class="col-md-4">
+          <div class="card stat-card">
+              <div class="stat-number" id="totalTeams">0</div>
+              <div>Teams</div>
+          </div>
+      </div>
+
+  </div>
+
+  <h4 class="mb-3">Recent Events</h4>
+
+  <div id="cards" class="row g-3"></div>
+  `;
+
   api.json('/api/events').then(res => {
+
     const events = res.body || [];
+
+    document.getElementById('totalEvents').textContent =
+        events.length;
+
     const cards = document.getElementById('cards');
+
     cards.innerHTML = '';
-    events.slice(0,3).forEach(ev => {
-      const col = document.createElement('div'); col.className = 'col-md-4';
-      col.innerHTML = `<div class="card p-3 card-compact"><div class="card-body">
-        <div class="event-title">${ev.title}</div>
-        <div class="small-muted">${ev.date}</div>
-        <div class="mt-3"><button class="btn btn-sm btn-register">View</button></div>
-      </div></div>`;
+
+    events.forEach(ev => {
+
+      const col = document.createElement('div');
+
+      col.className = 'col-md-4';
+
+      col.innerHTML = `
+              <div class="card p-3 card-compact event-card">
+                  <div class="card-body">
+
+                      <div class="event-title">
+                          ${ev.title}
+                      </div>
+
+                      <div class="small-muted">
+                          ${ev.date}
+                      </div>
+
+                      <div class="mt-3">
+                          <button class="btn btn-sm btn-register">
+                              View
+                          </button>
+                      </div>
+
+                  </div>
+              </div>
+          `;
+
       cards.appendChild(col);
     });
+
+  });
+
+  api.json('/api/teams').then(res => {
+
+    document.getElementById('totalTeams').textContent =
+        (res.body || []).length;
+
+  });
+
+  api.json('/api/profile').then(res => {
+
+    const registrations =
+        res.body?.registrations || [];
+
+    document.getElementById('registeredEvents').textContent =
+        registrations.length;
+
   });
 }
 
-function showEvents(){
-  content.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Events</h3>
-  </div><div id="eventsList"></div>`;
-  const list = document.getElementById('eventsList');
-  api.json('/api/events').then(res => {
-    const evs = res.body || [];
-    list.innerHTML = '';
-    evs.forEach(ev => {
-      const row = document.createElement('div'); row.className = 'card mb-2 p-3 d-flex align-items-center';
-      const title = document.createElement('div'); title.className = 'me-auto';
-      title.innerHTML = `<div class="event-title">${ev.title}</div><div class="small-muted">${ev.date}</div>`;
-      const btn = document.createElement('button'); btn.className = 'btn btn-register'; btn.textContent = 'Register';
+function loadDashboardStats(){
 
-      // check registration state
-      api.json('/api/profile').then(pr => {
-        const regs = (pr.body && pr.body.registrations) || [];
-        const registered = regs.find(r => r.id === ev.id);
-        if (registered) { btn.textContent = 'Registered'; btn.disabled = true; }
+  api.json('/api/events')
+      .then(res => {
+
+        document.getElementById('totalEvents').textContent =
+            res.body.length;
+
+        document.getElementById('recentEvents').innerHTML =
+            res.body.map(e => `
+                <div class="card p-3 mb-2 event-card">
+                    <h5>${e.title}</h5>
+                    <small>${e.date}</small>
+                </div>
+                `).join('');
       });
 
-      btn.onclick = () => {
-        const token = localStorage.getItem('semp_token');
-        if (!token) return alert('Please log in');
-        btn.disabled = true;
-        fetch('/api/events/' + ev.id + '/register', {method:'POST', headers: {'Authorization':'Bearer '+token}})
-          .then(r => r.json()).then(j => { if (j.success) { btn.textContent='Registered'; alert('Registered'); } else { btn.disabled=false; alert(j.message||'Error'); } });
-      };
+  api.json('/api/teams')
+      .then(res => {
+        document.getElementById('totalTeams')
+            .textContent = res.body.length;
+      });
 
-      row.appendChild(title); row.appendChild(btn);
-      row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center';
-      list.appendChild(row);
-    });
-  });
+  api.json('/api/profile')
+      .then(res => {
+        document.getElementById('registeredEvents')
+            .textContent =
+            (res.body.registrations || []).length;
+      });
 }
 
-function showTeams(){
-  content.innerHTML = `<h3>Teams</h3><div id="teamsList"></div>`;
-  api.json('/api/teams').then(res => {
-    const list = document.getElementById('teamsList');
-    list.innerHTML = '';
-    (res.body || []).forEach(t => {
-      const card = document.createElement('div'); card.className='card mb-2 p-3';
-      card.innerHTML = `<div><strong>${t.name}</strong> <div class="small-muted">Coach: ${t.coach}</div></div>`;
-      list.appendChild(card);
-    });
-  });
+function showEvents() {
+
+  const user =
+      JSON.parse(localStorage.getItem('semp_user'));
+
+  content.innerHTML = `
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h2>Events</h2>
+
+    </div>
+
+    <div id="coachCreateArea"></div>
+
+    <div id="eventList"></div>
+
+    `;
+
+  if (user && user.role === "Coach") {
+
+    document.getElementById('coachCreateArea').innerHTML = `
+
+        <div class="card p-4 mb-4">
+
+            <h4>Create Event</h4>
+
+            <input
+                id="eventTitle"
+                class="form-control mb-2"
+                placeholder="Event Name">
+
+            <input
+                id="eventDate"
+                type="date"
+                class="form-control mb-2">
+
+            <button
+                id="createEventBtn"
+                class="btn btn-primary">
+                Create Event
+            </button>
+
+        </div>
+        `;
+
+    document.getElementById('createEventBtn').onclick = () => {
+
+      const title =
+          document.getElementById('eventTitle').value;
+
+      const date =
+          document.getElementById('eventDate').value;
+
+      if (!title || !date) {
+
+        alert('Please enter title and date');
+
+        return;
+      }
+
+      api.json('/api/events', {
+        method: 'POST',
+        body: JSON.stringify({
+          title,
+          date
+        })
+      })
+          .then(() => {
+
+            alert('Event created');
+
+            showEvents();
+          });
+    };
+  }
+
+  api.json('/api/events')
+      .then(res => {
+
+        const events = res.body || [];
+
+        const container =
+            document.getElementById('eventList');
+
+        container.innerHTML = '';
+
+        events.forEach(ev => {
+
+          container.innerHTML += `
+
+                <div class="card p-3 mb-3 event-card">
+
+                    <h5>${ev.title}</h5>
+
+                    <small class="text-muted">
+                        ${ev.date}
+                    </small>
+
+                    <div class="mt-3">
+
+                        <button
+                            class="btn btn-outline-primary">
+
+                            View Event
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+                `;
+        });
+
+      });
 }
 
-function showProfile(){
-  content.innerHTML = `<h3>Profile</h3><div id="profileArea"></div>`;
-  api.json('/api/profile').then(res => {
-    if (res.status === 401) return alert('Not logged in');
-    const area = document.getElementById('profileArea');
-    const user = res.body.user || {};
-    area.innerHTML = `<div><b>Email:</b> ${user.email}</div><div><b>Role:</b> ${user.role}</div><h5 class="mt-3">Your registrations</h5><div id="yourRegs"></div>`;
-    const regs = res.body.registrations || [];
-    const yourRegs = document.getElementById('yourRegs');
-    if (!regs.length) yourRegs.innerHTML = '<div class="small-muted">No registrations</div>';
-    regs.forEach(ev => {
-      const row = document.createElement('div'); row.className='d-flex align-items-center card p-2 mb-2';
-      row.innerHTML = `<div>${ev.title}<div class="small-muted">${ev.date}</div></div>`;
-      const btn = document.createElement('button'); btn.className='btn btn-outline-danger ms-auto'; btn.textContent='Unregister';
-      btn.onclick = () => {
-        const token = localStorage.getItem('semp_token');
-        fetch('/api/events/' + ev.id + '/unregister', {method:'POST', headers:{'Authorization':'Bearer '+token}})
-          .then(r => r.json()).then(j => { if (j.success) { alert('Unregistered'); showProfile(); } else alert(j.message||'Error'); });
-      };
-      row.appendChild(btn); yourRegs.appendChild(row);
-    });
-  });
+function showTeams() {
+
+  content.innerHTML = `
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h2>Teams</h2>
+
+        <button
+            id="createTeamBtn"
+            class="btn btn-success">
+
+            Create Team
+
+        </button>
+
+    </div>
+
+    <div id="teamList"></div>
+
+    `;
+
+  document.getElementById('createTeamBtn').onclick = () => {
+
+    const name = prompt("Enter Team Name");
+
+    if (!name) return;
+
+    api.json('/api/teams', {
+      method:'POST',
+      body: JSON.stringify({
+        name:name
+      })
+    })
+        .then(() => {
+
+          showTeams();
+
+        });
+  };
+
+  api.json('/api/teams')
+      .then(res => {
+
+        const teams = res.body || [];
+
+        const list =
+            document.getElementById('teamList');
+
+        list.innerHTML = '';
+
+        teams.forEach(team => {
+
+          list.innerHTML += `
+
+                <div class="card p-3 mb-3">
+
+                    <h5>${team.name}</h5>
+
+                    <small>
+
+                        Team ID:
+                        ${team.id || 'N/A'}
+
+                    </small>
+
+                </div>
+
+                `;
+
+        });
+
+      });
 }
 
+function showProfile() {
+
+  const user =
+      JSON.parse(localStorage.getItem('semp_user'));
+
+  content.innerHTML = `
+
+    <div class="row justify-content-center">
+
+        <div class="col-md-8">
+
+            <div class="card p-4">
+
+                <div class="text-center">
+
+                    <h2>
+
+                        ${user.email}
+
+                    </h2>
+
+                    <span class="badge bg-primary">
+
+                        ${user.role}
+
+                    </span>
+
+                </div>
+
+                <hr>
+
+                <div class="row">
+
+                    <div class="col-md-4">
+
+                        <div class="card stat-card">
+
+                            <div
+                                id="profileEvents"
+                                class="stat-number">
+
+                                0
+
+                            </div>
+
+                            <div>
+
+                                Registrations
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <div class="card stat-card">
+
+                            <div
+                                id="profileTeams"
+                                class="stat-number">
+
+                                0
+
+                            </div>
+
+                            <div>
+
+                                Teams
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <div class="card stat-card">
+
+                            <div
+                                id="profileRole"
+                                class="stat-number">
+
+                                1
+
+                            </div>
+
+                            <div>
+
+                                Active Role
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    `;
+
+  api.json('/api/profile')
+      .then(res => {
+
+        const profile =
+            res.body || {};
+
+        document.getElementById('profileEvents')
+            .textContent =
+            (profile.registrations || []).length;
+
+        document.getElementById('profileTeams')
+            .textContent =
+            (profile.teams || []).length;
+
+      });
+}
+
+function showFormations() {
+
+  content.innerHTML = `
+
+    <h2 class="mb-4">
+
+        Formation Builder
+
+    </h2>
+
+    <div class="card p-4">
+
+        <label class="mb-2">
+
+            Select Formation
+
+        </label>
+
+        <select
+            id="formationSelect"
+            class="form-select mb-4">
+
+            <option>4-4-2</option>
+
+            <option>4-3-3</option>
+
+            <option>3-5-2</option>
+
+            <option>5-3-2</option>
+
+        </select>
+
+        <div
+            id="formationPreview"
+            class="text-center">
+
+        </div>
+
+    </div>
+
+    `;
+
+  const select =
+      document.getElementById('formationSelect');
+
+  const preview =
+      document.getElementById('formationPreview');
+
+  function renderFormation() {
+
+    preview.innerHTML = `
+
+        <h3>
+
+            ${select.value}
+
+        </h3>
+
+        <div class="mt-3">
+
+            Formation Preview
+
+        </div>
+
+        `;
+
+  }
+
+  select.onchange = renderFormation;
+
+  renderFormation();
+}
 // Start: always show registration first (blueprint requirement). If already logged in, go to dashboard
 if (localStorage.getItem('semp_token')) {
   initSidebar();
