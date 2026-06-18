@@ -9,9 +9,27 @@ app.use(express.static(path.join(__dirname, 'public')));
 // In-memory data store
 const users = new Map(); // email -> {email,password,role}
 const events = [
-  { id: 1, title: 'Summer Football Cup', date: '2024-06-20' },
-  { id: 2, title: 'City League', date: '2024-05-05' },
-  { id: 3, title: 'Training Session', date: '2024-06-12' }
+  {
+    id: 1,
+    title: 'Summer Football Cup',
+    date: '2024-06-20',
+    coachEmail: 'coachA@test.com',
+    coachName: 'Coach A'
+  },
+  {
+    id: 2,
+    title: 'City League',
+    date: '2024-05-05',
+    coachEmail: 'coachB@test.com',
+    coachName: 'Coach B'
+  },
+  {
+    id: 3,
+    title: 'Training Session',
+    date: '2024-06-12',
+    coachEmail: 'coachA@test.com',
+    coachName: 'Coach A'
+  }
 ];
 const teams = [
   { id: 1, name: 'Red Strikers', coach: 'Coach A' },

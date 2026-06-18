@@ -131,10 +131,17 @@ function showLogin(){
     api.json('/api/login', { method: 'POST', body: JSON.stringify({email,password}) })
       .then(res => {
         if (res.status === 200 && res.body.success) {
-          localStorage.setItem('semp_token', res.body.token);
-          localStorage.setItem('semp_user', JSON.stringify(res.body.user));
-          initSidebar();
-          showDashboard();
+            localStorage.setItem('semp_token', res.body.token);
+            localStorage.setItem('semp_user', JSON.stringify(res.body.user));
+
+            initSidebar();
+
+            if(res.body.user.role === 'Coach'){
+                showCoachDashboard();
+            }
+            else{
+                showPlayerDashboard();
+            }
         } else {
           alert(res.body.message || 'Login failed');
         }
@@ -679,6 +686,97 @@ function showFormations() {
 
   renderFormation();
 }
+
+function showCoachDashboard(){
+
+    content.innerHTML = `
+
+    <h2>Coach Dashboard</h2>
+
+    <div class="alert alert-primary">
+
+        Welcome Coach
+
+    </div>
+
+    <div id="coachEvents"></div>
+
+    `;
+
+    api.json('/api/events')
+        .then(res => {
+
+            const events = res.body || [];
+
+            document.getElementById('coachEvents').innerHTML =
+                events.map(e => `
+
+                <div class="card p-3 mb-2">
+
+                    <h5>${e.title}</h5>
+
+                    <div>Date: ${e.date}</div>
+
+                    <div>Coach: ${e.coachName}</div>
+
+                </div>
+
+                `).join('');
+
+        });
+}
+
+function showPlayerDashboard(){
+
+    content.innerHTML = `
+
+    <h2>Player Dashboard</h2>
+
+    <div class="alert alert-success">
+
+        Available Events
+
+    </div>
+
+    <div id="playerEvents"></div>
+
+    `;
+
+    api.json('/api/events')
+        .then(res => {
+
+            const events = res.body || [];
+
+            document.getElementById('playerEvents').innerHTML =
+                events.map(e => `
+
+                <div class="card p-3 mb-3">
+
+                    <h5>${e.title}</h5>
+
+                    <div>Date: ${e.date}</div>
+
+                    <div>
+
+                        Coach:
+                        <strong>${e.coachName}</strong>
+
+                    </div>
+
+                    <button
+                        class="btn btn-primary mt-2">
+
+                        Register
+
+                    </button>
+
+                </div>
+
+                `).join('');
+
+        });
+}
+
 // Start: always show registration first (blueprint requirement). If already logged in, go to dashboard
 if (localStorage.getItem('semp_token')) {
   initSidebar();
