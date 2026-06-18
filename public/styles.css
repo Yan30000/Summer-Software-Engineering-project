@@ -1,0 +1,6 @@
+body { background:#f5f7fb; }
+#sidebar { background: linear-gradient(180deg, #0d4668, #082a40); min-height:100vh; }
+.card-compact { border-radius:10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.event-title { font-weight:600; }
+.small-muted { color:#6c757d; font-size:0.9rem; }
+.btn-register { background: #1e90ff; color: white; border: none; }
