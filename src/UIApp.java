@@ -226,17 +226,21 @@ public class UIApp extends Application {
         btnLogin.setOnAction(e -> {
             String em = email.getText().trim();
             String pw = pass.getText();
-            if (em.isEmpty() || pw.isEmpty()) { alert("Please fill email and password."); return; }
+                    System.out.println("[UI] Login attempt: " + em + " (pwd length=" + (pw!=null?pw.length():0) + ")");
+                    if (em.isEmpty() || pw.isEmpty()) { alert("Please fill email and password."); return; }
 
-            btnLogin.setDisable(true);
-            pi.setVisible(true);
+                    btnLogin.setDisable(true);
+                    pi.setVisible(true);
 
-            Task<BackendService.User> t = new Task<>() {
-                @Override
-                protected BackendService.User call() throws Exception {
-                    return BackendService.loginUser(em, pw);
-                }
-            };
+                    Task<BackendService.User> t = new Task<>() {
+                        @Override
+                        protected BackendService.User call() throws Exception {
+                            System.out.println("[UI] backend login call for: " + em);
+                            BackendService.User res = BackendService.loginUser(em, pw);
+                            System.out.println("[UI] backend returned: " + (res==null?"null":res.email));
+                            return res;
+                        }
+                    };
             t.setOnSucceeded(ev -> {
                 btnLogin.setDisable(false);
                 pi.setVisible(false);
@@ -245,7 +249,12 @@ public class UIApp extends Application {
                     currentUser = u;
                     sideNav.setVisible(true);
                     sideNav.setManaged(true);
-                    showDashboard();
+                    try {
+                        showDashboard();
+                    } catch (Exception ex) {
+                        alert("Error showing dashboard: " + ex.toString());
+                        ex.printStackTrace();
+                    }
                 } else {
                     alert("Invalid credentials.");
                 }
@@ -328,7 +337,7 @@ public class UIApp extends Application {
         s.setFill(Color.GRAY);
         Button action = new Button("View");
         action.setStyle("-fx-background-color: #1e90ff; -fx-text-fill: white; -fx-background-radius: 6;");
-        action.setOnAction(e -> alert("Open: " + title));
+        action.setOnAction(e -> showEventDetail(title));
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
@@ -469,6 +478,49 @@ public class UIApp extends Application {
         refresh.fire();
     }
 
+    // Detailed event view (uses backend event/coach objects)
+    private void showEventDetail(String title) {
+        VBox pane = new VBox(12);
+        pane.setPadding(new Insets(12));
+        Text header = new Text(title);
+        header.setFont(Font.font(18));
+
+        // fetch domain objects
+        com.semp.inmem.SportEvent ev = BackendService.getEventByTitle(title);
+        com.semp.inmem.User coach = BackendService.getCoachForEvent(title);
+        if (ev == null || coach == null) { alert("Event not found"); return; }
+
+        Text date = new Text("Date: " + (ev.getEventDate() != null ? ev.getEventDate().toString() : "TBD"));
+        Text loc = new Text("Location: " + (ev.getLocation() != null ? ev.getLocation() : "TBD"));
+        Text status = new Text("Status: " + (ev.getStatus() != null ? ev.getStatus().name() : "N/A"));
+
+        ListView<HBox> regs = new ListView<>();
+        regs.setPrefHeight(200);
+
+        Button refresh = new Button("Refresh");
+        refresh.setOnAction(e -> {
+            regs.getItems().clear();
+            // show pending registration requests
+            for (com.semp.inmem.User person : BackendService.getRegistrationsForEvent(title)) {
+                String name = person.getDisplayName();
+                HBox row = new HBox(8);
+                Text t = new Text(name + "");
+                Button assign = new Button("Confirm");
+                assign.setOnAction(ae -> {
+                    boolean ok = BackendService.confirmRegistration(person.getId(), ev.getEventId());
+                    if (ok) { alert("Confirmed " + name); refresh.fire(); }
+                    else alert("Confirm failed.");
+                });
+                row.getChildren().addAll(t, assign);
+                regs.getItems().add(row);
+            }
+        });
+
+        pane.getChildren().addAll(header, date, loc, status, new Text("Registration requests:"), regs, refresh);
+        setContent(pane);
+        refresh.fire();
+    }
+
     private void alert(String msg) {
         Alert a = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
         a.showAndWait();
@@ -478,220 +530,180 @@ public class UIApp extends Application {
         launch(args);
     }
 
-    // Adapter backend wired to the domain model (InMemoryDatabase, Coach, Player, Sport, Registration)
+    // Adapter backend using the testcase in-memory model (com.semp.inmem)
     static class BackendService {
         static class User { String email; String password; String role; User(String e, String p, String r) {email=e;password=p;role=r;} }
         static class Event { String title; String date; Event(String t, String d){title=t;date=d;} }
         static class Team { String name; String coach; Team(String n, String c){name=n;coach=c;} }
         static class Result { boolean success; String message; Result(boolean s, String m){success=s;message=m;} }
 
-        // simple credential store and lookups
-        private static final Map<String, String> passwords = new HashMap<>(); // email -> password
-        // map human-readable event title -> (coach,event) reference
-        private static final Map<String, Coach.Event> eventByTitle = new HashMap<>();
-        private static final Map<String, Coach> coachByEventTitle = new HashMap<>();
+        private static final com.semp.inmem.repos.UserRepository userRepo = new com.semp.inmem.repos.UserRepository();
+        private static final com.semp.inmem.repos.SportRepository sportRepo = new com.semp.inmem.repos.SportRepository();
+        private static final com.semp.inmem.repos.EventRepository eventRepo = new com.semp.inmem.repos.EventRepository();
+        private static final com.semp.inmem.repos.RegistrationRepository regRepo = new com.semp.inmem.repos.RegistrationRepository();
+
+        // title (formatted) -> eventId
+        private static final Map<String, Long> titleToEventId = new HashMap<>();
 
         static {
-            // seed a default sport and coach/event if none exist so UI has something to show
-            if (InMemoryDatabase.SPORTS.isEmpty()) {
-                Sport s = new Sport("Football", 11);
-                InMemoryDatabase.SPORTS.put(s.getSportId(), s);
-            }
-            if (InMemoryDatabase.COACHES.isEmpty()) {
-                Sport any = InMemoryDatabase.SPORTS.values().iterator().next();
-                Coach demo = new Coach("C-1", "Demo Coach", "Demo", "Coach", "coach@example.com", "");
-                InMemoryDatabase.COACHES.put(demo.getId(), demo);
-                InMemoryDatabase.PERSONS.put(demo.getId(), demo);
-                // seed demo credentials so the pre-seeded coach can log in from UI (password: demo)
-                passwords.put("coach@example.com", "demo");
-                // also create a demo player account
-                Player demoPlayer = new Player("Demo","Player","player@example.com","" );
-                InMemoryDatabase.PLAYERS.put(demoPlayer.getId(), demoPlayer);
-                InMemoryDatabase.PERSONS.put(demoPlayer.getId(), demoPlayer);
-                passwords.put("player@example.com", "demo");
-                Coach.Event ev = demo.createEvent(any, java.time.LocalDate.now().plusDays(7), "Main Field");
-                String title = formatTitle(demo, ev);
-                eventByTitle.put(title, ev);
-                coachByEventTitle.put(title, demo);
-            } else {
-                // build lookup from existing coaches
-                rebuildEventLookup();
+            // seed demo data
+            com.semp.inmem.DataSeeder.seed(userRepo, sportRepo, eventRepo, regRepo);
+            rebuildLookup();
+        }
+
+        private static void rebuildLookup() {
+            titleToEventId.clear();
+            for (com.semp.inmem.SportEvent ev : eventRepo.findAll()) {
+                String title = formatTitle(ev);
+                titleToEventId.put(title, ev.getEventId());
             }
         }
 
-        private static void rebuildEventLookup() {
-            eventByTitle.clear(); coachByEventTitle.clear();
-            for (Coach coach : InMemoryDatabase.COACHES.values()) {
-                for (Coach.Event ev : coach.getEvents()) {
-                    String title = formatTitle(coach, ev);
-                    eventByTitle.put(title, ev);
-                    coachByEventTitle.put(title, coach);
-                }
-            }
-        }
-
-        private static String formatTitle(Coach coach, Coach.Event ev) {
-            String sportName = "";
-            if (ev.getSportId() != null) {
-                Sport sp = InMemoryDatabase.SPORTS.get(ev.getSportId());
-                if (sp != null) sportName = sp.getSportName();
-            }
-            return String.format("%s - %s - %s", sportName.isEmpty() ? "Event" : sportName, coach.getName(), ev.getId());
+        private static String formatTitle(com.semp.inmem.SportEvent ev) {
+            String sportName = sportRepo.findById(ev.getSportId()).map(s->s.getName()).orElse("Event");
+            String coachName = userRepo.findById(ev.getCoachId()).map(u->u.getDisplayName()).orElse("Coach");
+            String date = ev.getEventDate() != null ? ev.getEventDate().toString() : "TBD";
+            return String.format("%s - %s - %s", sportName, coachName, date);
         }
 
         static Result registerUser(String email, String password, String role) {
-            System.out.println("[BackendService] registerUser called: " + email + " role=" + role);
             simulateDelay(200);
-            synchronized (passwords) {
-                if (passwords.containsKey(email)) {
-                    System.out.println("[BackendService] registerUser failed - already registered: " + email);
-                    return new Result(false, "Email already registered");
-                }
-                passwords.put(email, password);
-                // create domain object
-                String namePart = email.split("@")[0];
-                String[] parts = namePart.split("[._-]", 2);
-                String first = parts.length > 0 ? parts[0] : namePart;
-                String last = parts.length > 1 ? parts[1] : "";
-                if ("Coach".equalsIgnoreCase(role)) {
-                    Coach c = new Coach("C-" + java.util.UUID.randomUUID().toString().substring(0,6), namePart, first, last, email, "");
-                    InMemoryDatabase.COACHES.put(c.getId(), c);
-                    InMemoryDatabase.PERSONS.put(c.getId(), c);
-                    System.out.println("[BackendService] created coach: " + c.getEmail() + " id=" + c.getId());
-                    // rebuild events lookup
-                    for (Coach.Event ev : c.getEvents()) {
-                        String title = formatTitle(c, ev);
-                        eventByTitle.put(title, ev);
-                        coachByEventTitle.put(title, c);
-                    }
-                } else {
-                    Player p = new Player(first, last, email, "");
-                    InMemoryDatabase.PLAYERS.put(p.getId(), p);
-                    InMemoryDatabase.PERSONS.put(p.getId(), p);
-                    System.out.println("[BackendService] created player: " + p.getEmail() + " id=" + p.getId());
-                }
-                System.out.println("[BackendService] registerUser succeeded: " + email);
-                return new Result(true, "OK");
-            }
+            if (userRepo.findByEmail(email).isPresent()) return new Result(false, "Email already registered");
+            // simple name split
+            String namePart = email.split("@")[0];
+            String[] parts = namePart.split("[._-]", 2);
+            String first = parts.length>0?parts[0]:namePart;
+            String last = parts.length>1?parts[1]:"";
+            com.semp.inmem.Role r = "Coach".equalsIgnoreCase(role) ? com.semp.inmem.Role.COACH : com.semp.inmem.Role.PLAYER;
+            com.semp.inmem.User u = new com.semp.inmem.User(first, last, email, password, r);
+            userRepo.save(u);
+            rebuildLookup();
+            return new Result(true, "OK");
         }
 
         static User loginUser(String email, String password) {
-            System.out.println("[BackendService] loginUser called: " + email);
-            simulateDelay(120);
-            String pw = passwords.get(email);
-            if (pw == null) { System.out.println("[BackendService] loginUser: no such user: " + email); return null; }
-            if (!Objects.equals(pw, password)) { System.out.println("[BackendService] loginUser: wrong password for " + email); return null; }
-            // determine role
-            Person p = findPersonByEmail(email);
-            String role = "Player";
-            if (p instanceof Coach) role = "Coach";
-            System.out.println("[BackendService] loginUser success: " + email + " role=" + role);
-            return new User(email, password, role);
-        }
-
-        private static Person findPersonByEmail(String email) {
-            System.out.println("[BackendService] findPersonByEmail: " + email);
-            for (Person p : InMemoryDatabase.PERSONS.values()) {
-                if (p == null) continue;
-                String e = p.getEmail();
-                if (email.equals(e)) { System.out.println("[BackendService] findPersonByEmail -> found id=" + p.getId()); return p; }
-            }
-            System.out.println("[BackendService] findPersonByEmail -> not found: " + email);
-            return null;
+            simulateDelay(80);
+            var opt = userRepo.findByEmail(email);
+            if (opt.isEmpty()) return null;
+            com.semp.inmem.User u = opt.get();
+            if (!Objects.equals(u.getPassword(), password)) return null;
+            return new User(u.getEmail(), u.getPassword(), u.getRole().name());
         }
 
         static List<Event> getEvents() {
-            simulateDelay(80);
-            rebuildEventLookup();
+            simulateDelay(40);
+            rebuildLookup();
             List<Event> out = new ArrayList<>();
-            for (Map.Entry<String, Coach.Event> e : eventByTitle.entrySet()) {
-                Coach.Event ev = e.getValue();
-                String date = ev.getDate() != null ? ev.getDate().toString() : "TBD";
-                out.add(new Event(e.getKey(), date));
+            for (Map.Entry<String, Long> en : titleToEventId.entrySet()) {
+                Long id = en.getValue();
+                var ev = eventRepo.findById(id).orElse(null);
+                if (ev == null) continue;
+                String date = ev.getEventDate() != null ? ev.getEventDate().toString() : "TBD";
+                out.add(new Event(en.getKey(), date));
             }
             return out;
         }
 
-        static List<Team> getTeams() {
-            simulateDelay(60);
-            List<Team> out = new ArrayList<>();
-            for (Coach c : InMemoryDatabase.COACHES.values()) {
-                out.add(new Team(c.getName(), c.getCoachId()));
+        static com.semp.inmem.SportEvent getEventByTitle(String title) {
+            rebuildLookup();
+            Long id = titleToEventId.get(title);
+            if (id==null) return null;
+            return eventRepo.findById(id).orElse(null);
+        }
+
+        static com.semp.inmem.User getCoachForEvent(String title) {
+            var ev = getEventByTitle(title);
+            if (ev==null) return null;
+            return userRepo.findById(ev.getCoachId()).orElse(null);
+        }
+
+        static List<com.semp.inmem.User> getRegistrationsForEvent(String title) {
+            var ev = getEventByTitle(title);
+            List<com.semp.inmem.User> out = new ArrayList<>();
+            if (ev==null) return out;
+            for (com.semp.inmem.Registration r : regRepo.findByEventId(ev.getEventId())) {
+                if (r.getStatus() == com.semp.inmem.RegistrationStatus.PENDING) {
+                    userRepo.findById(r.getPlayerId()).ifPresent(out::add);
+                }
             }
+            return out;
+        }
+
+        static boolean confirmRegistration(Long playerId, Long eventId) {
+            var opt = regRepo.findByPlayerAndEvent(playerId, eventId);
+            if (opt.isEmpty()) return false;
+            com.semp.inmem.Registration r = opt.get();
+            r.setStatus(com.semp.inmem.RegistrationStatus.CONFIRMED);
+            regRepo.save(r);
+            return true;
+        }
+
+        static List<Team> getTeams() {
+            // simplify: show coaches as teams
+            List<Team> out = new ArrayList<>();
+            for (com.semp.inmem.User u : userRepo.findAll()) if (u.getRole()==com.semp.inmem.Role.COACH) out.add(new Team(u.getDisplayName(), u.getEmail()));
             return out;
         }
 
         static boolean registerForEvent(String email, String eventTitle) {
-            System.out.println("[BackendService] registerForEvent called: " + email + " -> " + eventTitle);
             simulateDelay(60);
-            Person p = findPersonByEmail(email);
-            if (p == null) { System.out.println("[BackendService] registerForEvent: no person for " + email); return false; }
-            Coach.Event ev = eventByTitle.get(eventTitle);
-            Coach coach = coachByEventTitle.get(eventTitle);
-            if (ev == null || coach == null) { System.out.println("[BackendService] registerForEvent: no event/coach found for title: " + eventTitle); return false; }
-            Player player = null;
-            if (p instanceof Player) player = (Player)p;
-            else {
-                // create a lightweight player record for this email
-                Player newP = new Player(p.getFirstName(), p.getLastName(), p.getEmail(), p.getPhone());
-                InMemoryDatabase.PLAYERS.put(newP.getId(), newP);
-                InMemoryDatabase.PERSONS.put(newP.getId(), newP);
-                player = newP;
-                System.out.println("[BackendService] registerForEvent: created lightweight player id=" + newP.getId());
+            var userOpt = userRepo.findByEmail(email);
+            com.semp.inmem.User user;
+            if (userOpt.isEmpty()) {
+                // create simple player account
+                String[] parts = email.split("@")[0].split("[._-]");
+                String first = parts.length>0?parts[0]:email;
+                user = new com.semp.inmem.User(first, "", email, "", com.semp.inmem.Role.PLAYER);
+                userRepo.save(user);
+            } else user = userOpt.get();
+            var ev = getEventByTitle(eventTitle);
+            if (ev==null) return false;
+            var existing = regRepo.findByPlayerAndEvent(user.getId(), ev.getEventId());
+            if (existing.isPresent()) {
+                com.semp.inmem.Registration r = existing.get();
+                if (r.getStatus()!=com.semp.inmem.RegistrationStatus.CANCELLED) return false;
+                r.setStatus(com.semp.inmem.RegistrationStatus.PENDING);
+                regRepo.save(r);
+                return true;
             }
-            boolean added = player.registerForEvent(coach, ev);
-            System.out.println("[BackendService] registerForEvent result=" + added);
-            return added;
+            com.semp.inmem.Registration reg = new com.semp.inmem.Registration(user.getId(), ev.getEventId(), com.semp.inmem.RegistrationStatus.PENDING);
+            regRepo.save(reg);
+            return true;
         }
 
         static boolean unregisterFromEvent(String email, String eventTitle) {
-            System.out.println("[BackendService] unregisterFromEvent called: " + email + " -> " + eventTitle);
             simulateDelay(60);
-            Person p = findPersonByEmail(email);
-            if (p == null) { System.out.println("[BackendService] unregisterFromEvent: no person for " + email); return false; }
-            Coach.Event ev = eventByTitle.get(eventTitle);
-            Coach coach = coachByEventTitle.get(eventTitle);
-            if (ev == null || coach == null) { System.out.println("[BackendService] unregisterFromEvent: no event/coach for title " + eventTitle); return false; }
-            if (!(p instanceof Player)) { System.out.println("[BackendService] unregisterFromEvent: person is not a Player: " + email); return false; }
-            Player player = (Player)p;
-            boolean ok = player.cancelRegistration(coach, ev);
-            System.out.println("[BackendService] unregisterFromEvent result=" + ok);
-            return ok;
+            var userOpt = userRepo.findByEmail(email);
+            if (userOpt.isEmpty()) return false;
+            var ev = getEventByTitle(eventTitle);
+            if (ev==null) return false;
+            var existing = regRepo.findByPlayerAndEvent(userOpt.get().getId(), ev.getEventId());
+            if (existing.isEmpty()) return false;
+            com.semp.inmem.Registration r = existing.get();
+            r.setStatus(com.semp.inmem.RegistrationStatus.CANCELLED);
+            regRepo.save(r);
+            return true;
         }
 
         static boolean isUserRegistered(String email, String eventTitle) {
-            Person p = findPersonByEmail(email);
-            if (p == null) return false;
-            Coach.Event ev = eventByTitle.get(eventTitle);
-            if (ev == null) return false;
-            for (java.util.UUID id : ev.getRegistrationRequests()) if (InMemoryDatabase.PERSONS.get(id) == p || InMemoryDatabase.PERSONS.get(id) != null && InMemoryDatabase.PERSONS.get(id).getEmail().equals(email)) return true;
-            // also check lineup
-            for (java.util.UUID id : ev.getLineup()) {
-                Person per = InMemoryDatabase.PERSONS.get(id);
-                if (per != null && email.equals(per.getEmail())) return true;
-            }
-            return false;
+            var userOpt = userRepo.findByEmail(email);
+            if (userOpt.isEmpty()) return false;
+            var ev = getEventByTitle(eventTitle);
+            if (ev==null) return false;
+            var existing = regRepo.findByPlayerAndEvent(userOpt.get().getId(), ev.getEventId());
+            if (existing.isEmpty()) return false;
+            return existing.get().getStatus() != com.semp.inmem.RegistrationStatus.CANCELLED;
         }
 
         static List<Event> getUserEvents(String email) {
-            simulateDelay(40);
-            Person p = findPersonByEmail(email);
-            List<Event> out = new ArrayList<>();
-            if (p == null) return out;
-            rebuildEventLookup();
-            for (Map.Entry<String, Coach.Event> en : eventByTitle.entrySet()) {
-                String title = en.getKey();
-                Coach.Event ev = en.getValue();
-                boolean contains = false;
-                for (java.util.UUID id : ev.getRegistrationRequests()) {
-                    Person per = InMemoryDatabase.PERSONS.get(id);
-                    if (per != null && email.equals(per.getEmail())) { contains = true; break; }
-                }
-                for (java.util.UUID id : ev.getLineup()) {
-                    Person per = InMemoryDatabase.PERSONS.get(id);
-                    if (per != null && email.equals(per.getEmail())) { contains = true; break; }
-                }
-                if (contains) out.add(new Event(title, ev.getDate() != null ? ev.getDate().toString() : "TBD"));
+            var out = new ArrayList<Event>();
+            var userOpt = userRepo.findByEmail(email);
+            if (userOpt.isEmpty()) return out;
+            var regs = regRepo.findByPlayerId(userOpt.get().getId());
+            for (com.semp.inmem.Registration r : regs) {
+                if (r.getStatus() == com.semp.inmem.RegistrationStatus.CANCELLED) continue;
+                var ev = eventRepo.findById(r.getEventId()).orElse(null);
+                if (ev!=null) out.add(new Event(formatTitle(ev), ev.getEventDate()!=null?ev.getEventDate().toString():"TBD"));
             }
             return out;
         }
@@ -699,4 +711,5 @@ public class UIApp extends Application {
         private static void simulateDelay(long ms) { try { Thread.sleep(ms); } catch (InterruptedException ignored) {} }
     }
 }
+
 
