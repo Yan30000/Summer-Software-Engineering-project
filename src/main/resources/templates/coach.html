@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Coach Dashboard - SEPS</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="navbar">
+    <h2>Coach Dashboard</h2>
+    <div>
+        <a href="/">Home</a>
+        <a href="/coach/create-event">Create Event</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="card">
+        <h1>
+            Welcome,
+            <span th:text="${currentUser.name}"></span>
+        </h1>
+
+        <p>
+            Manage your sport events, player registrations, formations,
+            graphical lineups, substitutes, and published lineup cards.
+        </p>
+    </div>
+
+    <div class="grid">
+        <div class="stat-card">
+            <h2 th:text="${totalEvents}"></h2>
+            <p>Your Events</p>
+        </div>
+
+        <div class="stat-card">
+            <h2 th:text="${totalRegistrations}"></h2>
+            <p>Player Registrations</p>
+        </div>
+
+        <div class="stat-card">
+            <h2 th:text="${publishedEvents}"></h2>
+            <p>Published Lineups</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Your Sport Events</h2>
+
+        <a href="/coach/create-event" class="btn">Create Sport Event</a>
+
+        <p th:if="${events.size() == 0}" class="notice">
+            You have not created any events yet.
+        </p>
+
+        <table th:if="${events.size() > 0}">
+            <tr>
+                <th>ID</th>
+                <th>Event</th>
+                <th>Sport</th>
+                <th>Date</th>
+                <th>Team</th>
+                <th>Formation</th>
+                <th>Status</th>
+                <th>Players</th>
+                <th>Action</th>
+            </tr>
+
+            <tr th:each="event : ${events}">
+                <td th:text="${event.eventId}"></td>
+                <td th:text="${event.eventName}"></td>
+                <td th:text="${event.sportType}"></td>
+                <td th:text="${event.eventDate}"></td>
+                <td th:text="${event.teamName}"></td>
+                <td th:text="${event.formationName}"></td>
+
+                <td>
+                    <span th:if="${event.status == 'Registration Open'}"
+                          class="badge badge-open"
+                          th:text="${event.status}">
+                    </span>
+
+                    <span th:if="${event.status == 'Registration Closed'}"
+                          class="badge badge-danger"
+                          th:text="${event.status}">
+                    </span>
+
+                    <span th:if="${event.status == 'Lineup Finalized'}"
+                          class="badge badge-final"
+                          th:text="${event.status}">
+                    </span>
+
+                    <span th:if="${event.status == 'Lineup Published'}"
+                          class="badge badge-final"
+                          th:text="${event.status}">
+                    </span>
+                </td>
+
+                <td th:text="${event.registrations.size()}"></td>
+
+                <td>
+                    <a th:href="@{'/coach/event/' + ${event.eventId}}"
+                       class="btn btn-secondary">
+                        Manage
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Final Lineup - SEPS</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/lineup-graphic.css">
+    <script src="/js/lineup-graphic.js" defer></script>
+</head>
+<body>
+
+<div class="navbar">
+    <h2>Lineup Status</h2>
+    <div>
+        <a href="/">Home</a>
+        <a href="/player">Player Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h1 th:text="${event.eventName}"></h1>
+
+        <p>
+            <strong>Sport:</strong>
+            <span th:text="${event.sportType}"></span>
+        </p>
+
+        <p>
+            <strong>Date:</strong>
+            <span th:text="${event.eventDate}"></span>
+        </p>
+
+        <p>
+            <strong>Formation:</strong>
+            <span th:text="${event.formationName}"></span>
+        </p>
+
+        <p>
+            <strong>Status:</strong>
+            <span th:text="${event.status}"></span>
+        </p>
+    </div>
+
+    <div class="card" th:if="${myRegistration == null}">
+        <h2>You are not registered for this event</h2>
+
+        <p>
+            You must register for the event before checking your personal lineup status.
+        </p>
+
+        <a th:href="@{'/player/event/' + ${event.eventId}}"
+           class="btn">
+            View Event Details
+        </a>
+    </div>
+
+    <div class="card" th:if="${myRegistration != null && event.published == false}">
+        <h2>Lineup Pending</h2>
+
+        <p>
+            The coach has not published the final lineup yet.
+        </p>
+
+        <p>
+            <strong>Your Requested Position:</strong>
+            <span th:text="${myRegistration.requestedPosition}"></span>
+        </p>
+
+        <p>
+            <strong>Current Status:</strong>
+            <span class="badge badge-wait"
+                  th:text="${myRegistration.selectionStatus}">
+            </span>
+        </p>
+    </div>
+
+    <div class="card" th:if="${myRegistration != null && event.published}">
+        <h2>Your Final Lineup Result</h2>
+
+        <p>
+            <strong>Your Name:</strong>
+            <span th:text="${myRegistration.playerName}"></span>
+        </p>
+
+        <p>
+            <strong>Assigned Position:</strong>
+            <span th:text="${myRegistration.assignedPosition}"></span>
+        </p>
+
+        <p>
+            <strong>Status:</strong>
+            <span th:text="${myRegistration.selectionStatus}"></span>
+        </p>
+
+        <p>
+            <strong>Substitute:</strong>
+            <span th:text="${myRegistration.substitute}"></span>
+        </p>
+    </div>
+
+    <section class="graphic-card" th:if="${event.published}">
+        <div class="graphic-header">
+            <div>
+                <h2>Published Graphical Lineup</h2>
+                <p>
+                    This is the final lineup published by the coach.
+                </p>
+            </div>
+
+            <div class="graphic-actions">
+                <button type="button"
+                        class="graphic-btn"
+                        onclick="window.print()">
+                    Print Preview
+                </button>
+
+                <button type="button"
+                        class="graphic-btn secondary"
+                        onclick="downloadLineupCard()">
+                    Download Card
+                </button>
+
+                <button type="button"
+                        class="graphic-btn success"
+                        onclick="copyLineupSummary()">
+                    Copy Summary
+                </button>
+            </div>
+        </div>
+
+        <div class="lineup-preview-wrapper"
+             th:attr="data-sport=${event.sportType},
+                      data-formation-code=${event.formationCode},
+                      data-formation-name=${event.formationName},
+                      data-team=${event.teamName}">
+
+            <div class="lineupBoard"></div>
+
+            <div class="side-panel">
+                <div class="side-card">
+                    <h3>Starting Lineup</h3>
+                    <ol class="lineupList"></ol>
+                </div>
+
+                <div class="side-card">
+                    <h3>Substitutes</h3>
+                    <ul class="benchList"></ul>
+                </div>
+            </div>
+
+            <div style="display:none">
+                <div th:each="registration : ${event.registrations}"
+                     class="lineup-data-row"
+                     th:attr="data-player-name=${registration.playerName},
+                              data-player-email=${registration.email},
+                              data-requested=${registration.requestedPosition},
+                              data-assigned=${registration.assignedPosition},
+                              data-status=${registration.selectionStatus}">
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+</body>
+</html>

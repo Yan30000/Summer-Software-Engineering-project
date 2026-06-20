@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>SEPS - Sport Event Planner System</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="navbar">
+    <h2>SEPS</h2>
+    <div>
+        <a href="/">Home</a>
+        <a href="/register">Register</a>
+        <a href="/login">Login</a>
+        <a href="/coach">Coach</a>
+        <a href="/player">Player</a>
+        <a th:if="${currentUser != null}" href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="hero">
+    <h1>Sport Event Planner System</h1>
+    <p>
+        A professional web application that helps coaches create sport events, manage registration,
+        configure formations, assign players, handle substitutes, publish visual lineups, and allow
+        players to view their final position.
+    </p>
+
+    <a href="/register" class="btn btn-success">Create Account</a>
+    <a href="/login" class="btn">Login</a>
+</div>
+
+<div class="container">
+    <div class="grid">
+        <div class="card">
+            <h3>Coach Workflow</h3>
+            <p>
+                Create events, configure sport-specific formations, assign positions,
+                finalize lineups, publish lineups, and download lineup cards.
+            </p>
+        </div>
+
+        <div class="card">
+            <h3>Player Workflow</h3>
+            <p>
+                Register, log in, browse events, search by coach name, register before deadline,
+                and view the published graphical lineup.
+            </p>
+        </div>
+
+        <div class="card">
+            <h3>Graphical Lineups</h3>
+            <p>
+                Sport-aware lineup boards are generated for soccer, basketball,
+                volleyball, hockey, and tennis.
+            </p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>System Status</h2>
+
+        <p>
+            <strong>Total Registered Users:</strong>
+            <span th:text="${userCount}"></span>
+        </p>
+
+        <p>
+            <strong>Total Sport Events:</strong>
+            <span th:text="${eventCount}"></span>
+        </p>
+
+        <p th:if="${currentUser != null}">
+            Logged in as
+            <strong th:text="${currentUser.name}"></strong>
+            (<span th:text="${currentUser.role}"></span>)
+        </p>
+
+        <p th:if="${currentUser == null}" class="small-text">
+            Please register and log in to access coach or player features.
+        </p>
+    </div>
+</div>
+
+<div class="footer">
+    <p>CS2043 Software Engineering-I | SEPS Project Part 2</p>
+</div>
+
+</body>
+</html>

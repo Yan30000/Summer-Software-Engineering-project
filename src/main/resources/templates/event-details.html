@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Event Details - SEPS</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="navbar">
+    <h2>Event Details</h2>
+    <div>
+        <a href="/">Home</a>
+        <a href="/player">Player Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h1 th:text="${event.eventName}"></h1>
+
+        <p>
+            <strong>Coach:</strong>
+            <span th:text="${event.coachName}"></span>
+        </p>
+
+        <p>
+            <strong>Sport:</strong>
+            <span th:text="${event.sportType}"></span>
+        </p>
+
+        <p>
+            <strong>Event Date:</strong>
+            <span th:text="${event.eventDate}"></span>
+        </p>
+
+        <p>
+            <strong>Registration Deadline:</strong>
+            <span th:text="${event.registrationDeadLine}"></span>
+        </p>
+
+        <p>
+            <strong>Team Name:</strong>
+            <span th:text="${event.teamName}"></span>
+        </p>
+
+        <p>
+            <strong>Active Players Needed:</strong>
+            <span th:text="${event.maxPlayers}"></span>
+        </p>
+
+        <p>
+            <strong>Formation:</strong>
+            <span th:text="${event.formationName}"></span>
+        </p>
+
+        <p>
+            <strong>Formation Note:</strong>
+            <span th:text="${event.formationDescription}"></span>
+        </p>
+
+        <p>
+            <strong>Current Registrations:</strong>
+            <span th:text="${event.registrations.size()}"></span>
+        </p>
+
+        <div th:if="${canRegister}" class="notice">
+            Registration is open for this event.
+        </div>
+
+        <div th:if="${canRegister == false}" class="error">
+            Registration is currently closed, the deadline has passed, or the lineup has already been finalized.
+        </div>
+
+        <a th:if="${canRegister}"
+           th:href="@{'/player/register/' + ${event.eventId}}"
+           class="btn btn-success">
+            Register for Event
+        </a>
+
+        <a th:href="@{'/player/lineup/' + ${event.eventId}}"
+           class="btn">
+            View Lineup
+        </a>
+
+        <a href="/player"
+           class="btn btn-secondary">
+            Back
+        </a>
+    </div>
+</div>
+
+</body>
+</html>

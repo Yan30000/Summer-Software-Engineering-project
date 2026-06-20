@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Create Sport Event - SEPS</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/lineup-graphic.js" defer></script>
+</head>
+<body>
+
+<div class="navbar">
+    <h2>Create Event</h2>
+    <div>
+        <a href="/">Home</a>
+        <a href="/coach">Coach Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h1>Create New Sport Event</h1>
+
+        <p>
+            Set the sport type, deadline, team name, active player count,
+            and a real sport-specific formation.
+        </p>
+
+        <div th:if="${error}" class="error" th:text="${error}"></div>
+
+        <form action="/coach/create-event" method="post">
+            <div class="form-group">
+                <label for="eventName">Event Name</label>
+                <input type="text"
+                       id="eventName"
+                       name="eventName"
+                       placeholder="Friday Evening Soccer Match"
+                       required>
+            </div>
+
+            <div class="form-group">
+                <label for="sportType">Sport Type</label>
+                <select id="sportType" name="sportType" required>
+                    <option value="">Select sport</option>
+                    <option value="Soccer">Soccer</option>
+                    <option value="Basketball">Basketball</option>
+                    <option value="Volleyball">Volleyball</option>
+                    <option value="Hockey">Hockey</option>
+                    <option value="Tennis">Tennis</option>
+                </select>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="eventDate">Event Date</label>
+                    <input type="date"
+                           id="eventDate"
+                           name="eventDate"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="registrationDeadLine">Registration Deadline</label>
+                    <input type="date"
+                           id="registrationDeadLine"
+                           name="registrationDeadLine"
+                           required>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="teamName">Team Name</label>
+                    <input type="text"
+                           id="teamName"
+                           name="teamName"
+                           placeholder="Team A"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="maxPlayers">Active Players</label>
+                    <input type="number"
+                           id="maxPlayers"
+                           name="maxPlayers"
+                           min="1"
+                           max="20"
+                           readonly
+                           required>
+
+                    <p class="small-text">
+                        This is automatically filled from the selected formation.
+                    </p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="formationCode">Formation / Layout</label>
+
+                <select id="formationCode" name="formationCode" required>
+                    <option value="">Select formation</option>
+
+                    <option th:each="formation : ${formationOptions}"
+                            th:value="${formation.code}"
+                            th:text="${formation.sport + ' - ' + formation.name}"
+                            th:attr="data-sport=${formation.sport},
+                                     data-players=${formation.activePlayers},
+                                     data-description=${formation.description}">
+                    </option>
+                </select>
+
+                <p id="formationInfo" class="notice">
+                    Select a sport and formation to see details.
+                </p>
+            </div>
+
+            <button type="submit" class="btn">Create Event</button>
+            <a href="/coach" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>
