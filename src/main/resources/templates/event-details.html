@@ -1,94 +1,12 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Event Details - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
+<head><title>Event Details - SEPS</title><link rel="stylesheet" href="/css/styles.css"></head>
 <body>
-
-<div class="navbar">
-    <h2>Event Details</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/player">Player Dashboard</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h1 th:text="${event.eventName}"></h1>
-
-        <p>
-            <strong>Coach:</strong>
-            <span th:text="${event.coachName}"></span>
-        </p>
-
-        <p>
-            <strong>Sport:</strong>
-            <span th:text="${event.sportType}"></span>
-        </p>
-
-        <p>
-            <strong>Event Date:</strong>
-            <span th:text="${event.eventDate}"></span>
-        </p>
-
-        <p>
-            <strong>Registration Deadline:</strong>
-            <span th:text="${event.registrationDeadLine}"></span>
-        </p>
-
-        <p>
-            <strong>Team Name:</strong>
-            <span th:text="${event.teamName}"></span>
-        </p>
-
-        <p>
-            <strong>Active Players Needed:</strong>
-            <span th:text="${event.maxPlayers}"></span>
-        </p>
-
-        <p>
-            <strong>Formation:</strong>
-            <span th:text="${event.formationName}"></span>
-        </p>
-
-        <p>
-            <strong>Formation Note:</strong>
-            <span th:text="${event.formationDescription}"></span>
-        </p>
-
-        <p>
-            <strong>Current Registrations:</strong>
-            <span th:text="${event.registrations.size()}"></span>
-        </p>
-
-        <div th:if="${canRegister}" class="notice">
-            Registration is open for this event.
-        </div>
-
-        <div th:if="${canRegister == false}" class="error">
-            Registration is currently closed, the deadline has passed, or the lineup has already been finalized.
-        </div>
-
-        <a th:if="${canRegister}"
-           th:href="@{'/player/register/' + ${event.eventId}}"
-           class="btn btn-success">
-            Register for Event
-        </a>
-
-        <a th:href="@{'/player/lineup/' + ${event.eventId}}"
-           class="btn">
-            View Lineup
-        </a>
-
-        <a href="/player"
-           class="btn btn-secondary">
-            Back
-        </a>
-    </div>
-</div>
-
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/player">Dashboard</a><a href="/logout">Logout</a></div></nav>
+<main class="container">
+    <section class="page-header"><div><span class="kicker">Event Details</span><h1 th:text="${event.eventName}"></h1><p>Review match details and register. Registration is unlimited; coach decides active players and substitutes.</p></div><span class="badge big" th:text="${event.status}"></span></section>
+    <section class="cards-3 stats"><div class="card"><span>Sport</span><strong th:text="${event.sportType}"></strong></div><div class="card"><span>Format</span><strong th:text="${event.matchFormat}"></strong></div><div class="card"><span>Registered</span><strong th:text="${event.registeredCount}"></strong></div></section>
+    <section class="layout-2"><div class="card"><div class="section-title"><span>Match</span><h2 th:text="${event.teamAName + ' vs ' + event.teamBName}"></h2></div><p><strong>Coach:</strong> <span th:text="${event.coachName}"></span></p><p><strong>Event Date:</strong> <span th:text="${event.eventDate}"></span></p><p><strong>Deadline:</strong> <span th:text="${event.registrationDeadLine}"></span></p><p><strong>Active players:</strong> <span th:text="${event.selectedActivePlayers}"></span> / Sport max <span th:text="${event.sportMaxActivePlayers}"></span></p></div><div class="card"><div class="section-title"><span>Your Status</span><h2>Registration</h2></div><div th:if="${myRegistration == null}"><p class="muted">You are not registered yet.</p><a class="btn btn-primary" th:if="${canRegister}" th:href="@{'/player/register/' + ${event.eventId}}">Register for Event</a><p th:if="${!canRegister}" class="alert error">Registration is closed.</p></div><div th:if="${myRegistration != null}"><p><strong>Requested:</strong> <span th:text="${myRegistration.requestedPosition}"></span></p><p><strong>Team:</strong> <span th:text="${myRegistration.teamAssignment}"></span></p><p><strong>Assigned:</strong> <span th:text="${myRegistration.assignedPosition}"></span></p><div class="button-row"><form th:if="${!event.finalized}" th:action="@{'/player/cancel-registration/' + ${myRegistration.registrationId}}" method="post"><button class="btn btn-danger">Cancel Registration</button></form><a class="btn btn-success" th:if="${event.published}" th:href="@{'/player/lineup/' + ${event.eventId}}">View Lineup</a></div></div></div></section>
+</main>
 </body>
 </html>

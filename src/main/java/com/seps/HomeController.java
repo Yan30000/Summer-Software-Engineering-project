@@ -1,5 +1,6 @@
 package com.seps;
 
+import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,43 +11,37 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 public class HomeController {
 
     private static final List<UserAccount> users = new ArrayList<>();
     private static final List<SportEventWeb> events = new ArrayList<>();
-    private static final List<FormationOption> formationOptions = buildFormationOptions();
 
     private static int nextUserId = 1;
     private static int nextEventId = 1;
     private static int nextRegistrationId = 1;
 
-    // Simple demo login state.
-    // For this class project, this is okay for demonstration.
-    // A real production system would use Spring Security sessions.
-    private static UserAccount currentUser = null;
-
-    // =========================
-    // HOME
-    // =========================
+    static {
+        users.add(new UserAccount(nextUserId++, "Demo Coach", "coach@seps.com", "1234", "COACH"));
+        users.add(new UserAccount(nextUserId++, "Demo Player", "player@seps.com", "1234", "PLAYER"));
+    }
 
     @GetMapping("/")
-    public String home(Model model) {
+    public String home(Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        model.addAttribute("currentUser", currentUser);
         model.addAttribute("eventCount", events.size());
         model.addAttribute("userCount", users.size());
-        model.addAttribute("currentUser", currentUser);
         return "index";
     }
 
-    // =========================
-    // ACCOUNT PAGES
-    // =========================
-
     @GetMapping("/register")
-    public String registerPage(Model model) {
-        model.addAttribute("currentUser", currentUser);
+    public String registerPage(Model model, HttpSession session) {
+        model.addAttribute("currentUser", getCurrentUser(session));
         return "register";
     }
 
@@ -55,89 +50,88 @@ public class HomeController {
                                  @RequestParam("email") String email,
                                  @RequestParam("password") String password,
                                  @RequestParam("role") String role,
-                                 Model model) {
+                                 Model model,
+                                 HttpSession session) {
+        String cleanEmail = email.trim().toLowerCase();
 
         for (UserAccount user : users) {
-            if (user.getEmail().equalsIgnoreCase(email.trim())) {
+            if (user.getEmail().equalsIgnoreCase(cleanEmail)) {
                 model.addAttribute("error", "An account with this email already exists.");
-                model.addAttribute("currentUser", currentUser);
+                model.addAttribute("currentUser", getCurrentUser(session));
                 return "register";
             }
         }
 
-        UserAccount user = new UserAccount(nextUserId, name.trim(), email.trim(), password, role);
+        UserAccount user = new UserAccount(nextUserId++, name.trim(), cleanEmail, password, role.toUpperCase());
         users.add(user);
-        nextUserId++;
+        session.setAttribute("currentUserId", user.getUserId());
 
-        model.addAttribute("success", "Account created successfully. Please log in.");
-        model.addAttribute("currentUser", currentUser);
-        return "login";
+        if (user.isCoach()) {
+            return "redirect:/coach";
+        }
+        return "redirect:/player";
     }
 
     @GetMapping("/login")
-    public String loginPage(Model model) {
-        model.addAttribute("currentUser", currentUser);
+    public String loginPage(Model model, HttpSession session) {
+        model.addAttribute("currentUser", getCurrentUser(session));
         return "login";
     }
 
     @PostMapping("/login")
     public String loginSubmit(@RequestParam("email") String email,
                               @RequestParam("password") String password,
-                              Model model) {
+                              Model model,
+                              HttpSession session) {
+        String cleanEmail = email.trim().toLowerCase();
 
         for (UserAccount user : users) {
-            if (user.getEmail().equalsIgnoreCase(email.trim()) && user.getPassword().equals(password)) {
-                currentUser = user;
-
+            if (user.getEmail().equalsIgnoreCase(cleanEmail) && user.getPassword().equals(password)) {
+                session.setAttribute("currentUserId", user.getUserId());
                 if (user.isCoach()) {
                     return "redirect:/coach";
                 }
-
                 return "redirect:/player";
             }
         }
 
         model.addAttribute("error", "Invalid email or password. Please try again.");
-        model.addAttribute("currentUser", currentUser);
+        model.addAttribute("currentUser", getCurrentUser(session));
         return "login";
     }
 
     @GetMapping("/logout")
-    public String logout() {
-        currentUser = null;
+    public String logout(HttpSession session) {
+        session.invalidate();
         return "redirect:/";
     }
 
-    // =========================
-    // COACH PAGES
-    // =========================
-
     @GetMapping("/coach")
-    public String coachDashboard(Model model) {
-        if (!isLoggedInCoach()) {
+    public String coachDashboard(Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
 
         List<SportEventWeb> coachEvents = getEventsForCoach(currentUser.getEmail());
-
         model.addAttribute("currentUser", currentUser);
         model.addAttribute("events", coachEvents);
         model.addAttribute("totalEvents", coachEvents.size());
         model.addAttribute("totalRegistrations", getTotalRegistrationsForCoach(currentUser.getEmail()));
-        model.addAttribute("finalizedEvents", getFinalizedEventCountForCoach(currentUser.getEmail()));
         model.addAttribute("publishedEvents", getPublishedEventCountForCoach(currentUser.getEmail()));
-
         return "coach";
     }
 
     @GetMapping("/coach/create-event")
-    public String createEventPage(Model model) {
-        if (!isLoggedInCoach()) {
+    public String createEventPage(Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
 
         model.addAttribute("currentUser", currentUser);
-        model.addAttribute("formationOptions", formationOptions);
+        model.addAttribute("sports", SportRules.getSports());
+        model.addAttribute("sportLimits", SportRules.getMaxPlayersPerTeamMap());
         return "create-event";
     }
 
@@ -146,65 +140,61 @@ public class HomeController {
                                     @RequestParam("sportType") String sportType,
                                     @RequestParam("eventDate") String eventDate,
                                     @RequestParam("registrationDeadLine") String registrationDeadLine,
-                                    @RequestParam("teamName") String teamName,
-                                    @RequestParam("formationCode") String formationCode,
-                                    @RequestParam(value = "maxPlayers", defaultValue = "0") int maxPlayers,
-                                    Model model) {
-
-        if (!isLoggedInCoach()) {
+                                    @RequestParam("teamAName") String teamAName,
+                                    @RequestParam("teamBName") String teamBName,
+                                    @RequestParam("selectedPlayersPerTeam") int selectedPlayersPerTeam,
+                                    @RequestParam("teamAFormation") String teamAFormation,
+                                    @RequestParam("teamBFormation") String teamBFormation,
+                                    @RequestParam(value = "expectedPlayers", defaultValue = "0") int expectedPlayers,
+                                    Model model,
+                                    HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
 
         LocalDate eventLocalDate = LocalDate.parse(eventDate);
         LocalDate deadlineLocalDate = LocalDate.parse(registrationDeadLine);
-
         if (deadlineLocalDate.isAfter(eventLocalDate)) {
             model.addAttribute("error", "Registration deadline cannot be after the event date.");
             model.addAttribute("currentUser", currentUser);
-            model.addAttribute("formationOptions", formationOptions);
+            model.addAttribute("sports", SportRules.getSports());
+            model.addAttribute("sportLimits", SportRules.getMaxPlayersPerTeamMap());
             return "create-event";
         }
 
-        FormationOption selectedFormation = findFormationByCode(formationCode);
-
-        if (selectedFormation == null) {
-            model.addAttribute("error", "Please select a valid formation.");
-            model.addAttribute("currentUser", currentUser);
-            model.addAttribute("formationOptions", formationOptions);
-            return "create-event";
-        }
-
-        int activePlayers = maxPlayers > 0 ? maxPlayers : selectedFormation.getActivePlayers();
+        int sportMax = SportRules.getMaxPlayersPerTeam(sportType);
+        int safePlayersPerTeam = clamp(selectedPlayersPerTeam, 1, sportMax);
 
         SportEventWeb event = new SportEventWeb(
-                nextEventId,
-                eventName,
+                nextEventId++,
+                eventName.trim(),
                 sportType,
                 eventDate,
                 registrationDeadLine,
-                teamName,
-                activePlayers,
-                selectedFormation.getCode(),
-                selectedFormation.getName(),
-                selectedFormation.getDescription(),
+                emptyToDefault(teamAName, "Team A"),
+                emptyToDefault(teamBName, "Team B"),
+                safePlayersPerTeam,
+                sportMax,
+                Math.max(0, expectedPlayers),
+                emptyToDefault(teamAFormation, SportRules.defaultFormation(sportType, safePlayersPerTeam)),
+                emptyToDefault(teamBFormation, SportRules.defaultFormation(sportType, safePlayersPerTeam)),
                 currentUser.getName(),
                 currentUser.getEmail()
         );
 
         events.add(event);
-        nextEventId++;
-
         return "redirect:/coach/event-created/" + event.getEventId();
     }
 
     @GetMapping("/coach/event-created/{eventId}")
-    public String eventCreatedPage(@PathVariable int eventId, Model model) {
-        if (!isLoggedInCoach()) {
+    public String eventCreatedPage(@PathVariable int eventId, Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
 
         SportEventWeb event = findEventById(eventId);
-
         if (event == null) {
             return "redirect:/coach";
         }
@@ -215,192 +205,197 @@ public class HomeController {
     }
 
     @GetMapping("/coach/event/{eventId}")
-    public String manageEvent(@PathVariable int eventId, Model model) {
-        if (!isLoggedInCoach()) {
+    public String manageEvent(@PathVariable int eventId, Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
 
         SportEventWeb event = findEventById(eventId);
-
         if (event == null || !event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())) {
             return "redirect:/coach";
         }
 
-        model.addAttribute("currentUser", currentUser);
-        model.addAttribute("event", event);
-        model.addAttribute("formationOptions", formationOptions);
-        model.addAttribute("positionOptions", buildPositions(event.getFormationCode()));
-
+        addEventManagementAttributes(model, currentUser, event);
         return "coach-event";
     }
 
-    @PostMapping("/coach/event/{eventId}/close-registration")
-    public String closeRegistration(@PathVariable int eventId) {
-        if (!isLoggedInCoach()) {
+    @PostMapping("/coach/event/{eventId}/settings")
+    public String updateMatchSettings(@PathVariable int eventId,
+                                      @RequestParam("teamAName") String teamAName,
+                                      @RequestParam("teamBName") String teamBName,
+                                      @RequestParam("selectedPlayersPerTeam") int selectedPlayersPerTeam,
+                                      @RequestParam("teamAFormation") String teamAFormation,
+                                      @RequestParam("teamBFormation") String teamBFormation,
+                                      @RequestParam(value = "expectedPlayers", defaultValue = "0") int expectedPlayers,
+                                      HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
 
         SportEventWeb event = findEventById(eventId);
+        if (event == null || !event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail()) || event.isFinalized()) {
+            return "redirect:/coach/event/" + eventId;
+        }
 
+        int safePlayersPerTeam = clamp(selectedPlayersPerTeam, 1, event.getSportMaxPlayersPerTeam());
+        event.setTeamAName(emptyToDefault(teamAName, "Team A"));
+        event.setTeamBName(emptyToDefault(teamBName, "Team B"));
+        event.setSelectedPlayersPerTeam(safePlayersPerTeam);
+        event.setExpectedPlayers(Math.max(0, expectedPlayers));
+        event.setTeamAFormation(emptyToDefault(teamAFormation, SportRules.defaultFormation(event.getSportType(), safePlayersPerTeam)));
+        event.setTeamBFormation(emptyToDefault(teamBFormation, SportRules.defaultFormation(event.getSportType(), safePlayersPerTeam)));
+        clearAssignments(event);
+        return "redirect:/coach/event/" + eventId;
+    }
+
+    @PostMapping("/coach/event/{eventId}/close-registration")
+    public String closeRegistration(@PathVariable int eventId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
+            return "redirect:/login";
+        }
+        SportEventWeb event = findEventById(eventId);
         if (event != null && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())) {
             event.setRegistrationClosed(true);
             event.setStatus("Registration Closed");
         }
-
         return "redirect:/coach/event/" + eventId;
     }
 
     @PostMapping("/coach/event/{eventId}/open-registration")
-    public String openRegistration(@PathVariable int eventId) {
-        if (!isLoggedInCoach()) {
+    public String openRegistration(@PathVariable int eventId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-
         if (event != null && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail()) && !event.isFinalized()) {
             event.setRegistrationClosed(false);
             event.setStatus("Registration Open");
         }
-
         return "redirect:/coach/event/" + eventId;
     }
 
-    @PostMapping("/coach/event/{eventId}/modify-formation")
-    public String modifyFormation(@PathVariable int eventId,
-                                  @RequestParam("formationCode") String formationCode,
-                                  @RequestParam(value = "maxPlayers", defaultValue = "0") int maxPlayers) {
-
-        if (!isLoggedInCoach()) {
+    @PostMapping("/coach/event/{eventId}/auto-assign")
+    public String autoAssignLineup(@PathVariable int eventId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-        FormationOption selectedFormation = findFormationByCode(formationCode);
-
-        if (event != null
-                && selectedFormation != null
-                && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())
-                && !event.isFinalized()) {
-
-            event.setFormationCode(selectedFormation.getCode());
-            event.setFormationName(selectedFormation.getName());
-            event.setFormationDescription(selectedFormation.getDescription());
-            event.setMaxPlayers(maxPlayers > 0 ? maxPlayers : selectedFormation.getActivePlayers());
-
-            for (PlayerRegistration registration : event.getRegistrations()) {
-                registration.setAssignedPosition("Not assigned yet");
-                registration.setSelectionStatus("Registered");
-                registration.setSubstitute(false);
-            }
+        if (event != null && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail()) && !event.isFinalized()) {
+            autoAssignPlayers(event);
         }
+        return "redirect:/coach/event/" + eventId;
+    }
 
+    @PostMapping("/coach/event/{eventId}/clear-lineup")
+    public String clearLineup(@PathVariable int eventId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
+            return "redirect:/login";
+        }
+        SportEventWeb event = findEventById(eventId);
+        if (event != null && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail()) && !event.isFinalized()) {
+            clearAssignments(event);
+        }
         return "redirect:/coach/event/" + eventId;
     }
 
     @PostMapping("/coach/event/{eventId}/assign/{registrationId}")
     public String assignPlayer(@PathVariable int eventId,
                                @PathVariable int registrationId,
+                               @RequestParam("teamAssignment") String teamAssignment,
                                @RequestParam("assignedPosition") String assignedPosition,
-                               @RequestParam("lineupRole") String lineupRole) {
-
-        if (!isLoggedInCoach()) {
+                               HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
 
         SportEventWeb event = findEventById(eventId);
         PlayerRegistration registration = findRegistrationById(event, registrationId);
-
-        if (event != null
-                && registration != null
-                && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())
-                && !event.isFinalized()) {
-
-            registration.setAssignedPosition(assignedPosition);
-
-            if (lineupRole.equals("SUBSTITUTE")) {
-                registration.setSubstitute(true);
-                registration.setSelectionStatus("Substitute");
-            } else {
-                registration.setSubstitute(false);
+        if (event != null && registration != null && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail()) && !event.isFinalized()) {
+            if ("TEAM_A".equals(teamAssignment)) {
+                registration.setTeamAssignment("Team A");
+                registration.setAssignedPosition(assignedPosition);
                 registration.setSelectionStatus("Selected");
+                registration.setSubstitute(false);
+            } else if ("TEAM_B".equals(teamAssignment)) {
+                registration.setTeamAssignment("Team B");
+                registration.setAssignedPosition(assignedPosition);
+                registration.setSelectionStatus("Selected");
+                registration.setSubstitute(false);
+            } else {
+                makeSubstitute(registration);
             }
+            enforceActiveLimits(event);
         }
-
-        return "redirect:/coach/event/" + eventId;
-    }
-
-    @PostMapping("/coach/event/{eventId}/auto-assign")
-    public String autoAssignLineup(@PathVariable int eventId) {
-        if (!isLoggedInCoach()) {
-            return "redirect:/login";
-        }
-
-        SportEventWeb event = findEventById(eventId);
-
-        if (event != null
-                && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())
-                && !event.isFinalized()) {
-            autoAssignPlayers(event);
-        }
-
         return "redirect:/coach/event/" + eventId;
     }
 
     @PostMapping("/coach/event/{eventId}/finalize")
-    public String finalizeLineup(@PathVariable int eventId) {
-        if (!isLoggedInCoach()) {
+    public String finalizeLineup(@PathVariable int eventId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-
         if (event == null || !event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())) {
             return "redirect:/coach";
         }
-
         autoAssignPlayers(event);
-
         event.setFinalized(true);
         event.setRegistrationClosed(true);
         event.setStatus("Lineup Finalized");
-
         return "redirect:/coach/event/" + eventId;
     }
 
     @PostMapping("/coach/event/{eventId}/publish")
-    public String publishLineup(@PathVariable int eventId) {
-        if (!isLoggedInCoach()) {
+    public String publishLineup(@PathVariable int eventId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-
-        if (event != null
-                && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())
-                && event.isFinalized()) {
-
+        if (event != null && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())) {
+            autoAssignPlayers(event);
+            event.setFinalized(true);
+            event.setRegistrationClosed(true);
             event.setPublished(true);
             event.setStatus("Lineup Published");
         }
-
         return "redirect:/coach/event/" + eventId;
     }
 
-    // =========================
-    // PLAYER PAGES
-    // =========================
+    @PostMapping("/coach/event/{eventId}/reopen")
+    public String reopenLineup(@PathVariable int eventId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isCoach()) {
+            return "redirect:/login";
+        }
+        SportEventWeb event = findEventById(eventId);
+        if (event != null && event.getCoachEmail().equalsIgnoreCase(currentUser.getEmail())) {
+            event.setFinalized(false);
+            event.setPublished(false);
+            event.setRegistrationClosed(false);
+            event.setStatus("Registration Open");
+        }
+        return "redirect:/coach/event/" + eventId;
+    }
 
     @GetMapping("/player")
     public String playerDashboard(@RequestParam(value = "coachName", required = false) String coachName,
-                                  Model model) {
-
-        if (!isLoggedInPlayer()) {
+                                  Model model,
+                                  HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isPlayer()) {
             return "redirect:/login";
         }
 
         List<SportEventWeb> visibleEvents = new ArrayList<>();
-
         for (SportEventWeb event : events) {
             if (coachName == null || coachName.trim().isEmpty()) {
                 visibleEvents.add(event);
@@ -416,99 +411,80 @@ public class HomeController {
     }
 
     @GetMapping("/player/event/{eventId}")
-    public String eventDetails(@PathVariable int eventId, Model model) {
-        if (!isLoggedInPlayer()) {
+    public String eventDetails(@PathVariable int eventId, Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isPlayer()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-
         if (event == null) {
             return "redirect:/player";
         }
-
         model.addAttribute("currentUser", currentUser);
         model.addAttribute("event", event);
         model.addAttribute("canRegister", event.isRegistrationAvailable());
+        model.addAttribute("myRegistration", findRegistrationByEmail(event, currentUser.getEmail()));
         return "event-details";
     }
 
     @GetMapping("/player/register/{eventId}")
-    public String registerForEventPage(@PathVariable int eventId, Model model) {
-        if (!isLoggedInPlayer()) {
+    public String registerForEventPage(@PathVariable int eventId, Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isPlayer()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-
         if (event == null) {
             return "redirect:/player";
         }
-
         if (!event.isRegistrationAvailable()) {
             model.addAttribute("currentUser", currentUser);
             model.addAttribute("event", event);
             return "registration-closed";
         }
-
         model.addAttribute("currentUser", currentUser);
         model.addAttribute("event", event);
-        model.addAttribute("positionOptions", buildPositions(event.getFormationCode()));
+        model.addAttribute("positionOptions", SportRules.positionsFor(event.getSportType(), event.getSelectedPlayersPerTeam(), event.getTeamAFormation()));
         return "register-event";
     }
 
     @PostMapping("/player/register")
     public String registerPlayer(@RequestParam("eventId") int eventId,
                                  @RequestParam("requestedPosition") String requestedPosition,
-                                 Model model) {
-
-        if (!isLoggedInPlayer()) {
+                                 Model model,
+                                 HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isPlayer()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-
         if (event == null) {
             return "redirect:/player";
         }
-
         if (!event.isRegistrationAvailable()) {
             model.addAttribute("currentUser", currentUser);
             model.addAttribute("event", event);
             return "registration-closed";
         }
-
         PlayerRegistration existingRegistration = findRegistrationByEmail(event, currentUser.getEmail());
-
         if (existingRegistration != null) {
             return "redirect:/player/registration-success/" + existingRegistration.getRegistrationId();
         }
-
-        PlayerRegistration registration = new PlayerRegistration(
-                nextRegistrationId,
-                currentUser.getName(),
-                currentUser.getEmail(),
-                requestedPosition
-        );
-
+        PlayerRegistration registration = new PlayerRegistration(nextRegistrationId++, currentUser.getName(), currentUser.getEmail(), requestedPosition);
         event.getRegistrations().add(registration);
-        nextRegistrationId++;
-
         return "redirect:/player/registration-success/" + registration.getRegistrationId();
     }
 
     @GetMapping("/player/registration-success/{registrationId}")
-    public String registrationSuccess(@PathVariable int registrationId, Model model) {
-        if (!isLoggedInPlayer()) {
+    public String registrationSuccess(@PathVariable int registrationId, Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isPlayer()) {
             return "redirect:/login";
         }
-
         RegistrationSearchResult result = findRegistrationByIdAcrossEvents(registrationId);
-
         if (result == null) {
             return "redirect:/player";
         }
-
         model.addAttribute("currentUser", currentUser);
         model.addAttribute("event", result.getEvent());
         model.addAttribute("registration", result.getRegistration());
@@ -516,54 +492,176 @@ public class HomeController {
     }
 
     @PostMapping("/player/cancel-registration/{registrationId}")
-    public String cancelRegistration(@PathVariable int registrationId) {
-        if (!isLoggedInPlayer()) {
+    public String cancelRegistration(@PathVariable int registrationId, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isPlayer()) {
             return "redirect:/login";
         }
-
         RegistrationSearchResult result = findRegistrationByIdAcrossEvents(registrationId);
-
-        if (result != null) {
-            SportEventWeb event = result.getEvent();
-
-            if (!event.isFinalized()) {
-                event.getRegistrations().remove(result.getRegistration());
-            }
+        if (result != null && !result.getEvent().isFinalized()) {
+            result.getEvent().getRegistrations().remove(result.getRegistration());
         }
-
         return "redirect:/player";
     }
 
     @GetMapping("/player/lineup/{eventId}")
-    public String viewLineup(@PathVariable int eventId, Model model) {
-        if (!isLoggedInPlayer()) {
+    public String viewLineup(@PathVariable int eventId, Model model, HttpSession session) {
+        UserAccount currentUser = getCurrentUser(session);
+        if (currentUser == null || !currentUser.isPlayer()) {
             return "redirect:/login";
         }
-
         SportEventWeb event = findEventById(eventId);
-
         if (event == null) {
             return "redirect:/player";
         }
-
-        PlayerRegistration myRegistration = findRegistrationByEmail(event, currentUser.getEmail());
-
         model.addAttribute("currentUser", currentUser);
         model.addAttribute("event", event);
-        model.addAttribute("myRegistration", myRegistration);
+        model.addAttribute("myRegistration", findRegistrationByEmail(event, currentUser.getEmail()));
+        model.addAttribute("teamAPlayers", getTeamAPlayers(event));
+        model.addAttribute("teamBPlayers", getTeamBPlayers(event));
+        model.addAttribute("substitutes", getSubstitutes(event));
         return "player-lineup";
     }
 
-    // =========================
-    // HELPER METHODS
-    // =========================
-
-    private boolean isLoggedInCoach() {
-        return currentUser != null && currentUser.isCoach();
+    private void addEventManagementAttributes(Model model, UserAccount currentUser, SportEventWeb event) {
+        model.addAttribute("currentUser", currentUser);
+        model.addAttribute("event", event);
+        model.addAttribute("playersPerTeamOptions", SportRules.playersPerTeamOptions(event.getSportType()));
+        model.addAttribute("formationOptions", SportRules.formationOptions(event.getSportType(), event.getSelectedPlayersPerTeam()));
+        model.addAttribute("positionOptions", SportRules.positionsFor(event.getSportType(), event.getSelectedPlayersPerTeam(), event.getTeamAFormation()));
+        model.addAttribute("teamAPlayers", getTeamAPlayers(event));
+        model.addAttribute("teamBPlayers", getTeamBPlayers(event));
+        model.addAttribute("substitutes", getSubstitutes(event));
+        model.addAttribute("unassignedPlayers", getUnassignedPlayers(event));
     }
 
-    private boolean isLoggedInPlayer() {
-        return currentUser != null && currentUser.isPlayer();
+    private UserAccount getCurrentUser(HttpSession session) {
+        Object userIdObject = session.getAttribute("currentUserId");
+        if (userIdObject == null) {
+            return null;
+        }
+        int userId = (int) userIdObject;
+        for (UserAccount user : users) {
+            if (user.getUserId() == userId) {
+                return user;
+            }
+        }
+        return null;
+    }
+
+    private void autoAssignPlayers(SportEventWeb event) {
+        clearAssignments(event);
+        List<PlayerRegistration> registrations = event.getRegistrations();
+        int activeLimit = Math.min(registrations.size(), event.getSelectedActivePlayers());
+        if (activeLimit % 2 != 0) {
+            activeLimit--;
+        }
+        int perTeam = activeLimit / 2;
+        List<String> teamAPositions = SportRules.positionsFor(event.getSportType(), event.getSelectedPlayersPerTeam(), event.getTeamAFormation());
+        List<String> teamBPositions = SportRules.positionsFor(event.getSportType(), event.getSelectedPlayersPerTeam(), event.getTeamBFormation());
+
+        for (int i = 0; i < registrations.size(); i++) {
+            PlayerRegistration registration = registrations.get(i);
+            if (i < perTeam) {
+                registration.setTeamAssignment("Team A");
+                registration.setAssignedPosition(safePosition(teamAPositions, i));
+                registration.setSelectionStatus("Selected");
+                registration.setSubstitute(false);
+            } else if (i < activeLimit) {
+                registration.setTeamAssignment("Team B");
+                registration.setAssignedPosition(safePosition(teamBPositions, i - perTeam));
+                registration.setSelectionStatus("Selected");
+                registration.setSubstitute(false);
+            } else {
+                makeSubstitute(registration);
+            }
+        }
+    }
+
+    private void clearAssignments(SportEventWeb event) {
+        for (PlayerRegistration registration : event.getRegistrations()) {
+            registration.setTeamAssignment("Unassigned");
+            registration.setAssignedPosition("Not assigned yet");
+            registration.setSelectionStatus("Registered");
+            registration.setSubstitute(false);
+        }
+    }
+
+    private void enforceActiveLimits(SportEventWeb event) {
+        moveExtraTeamPlayersToSubstitutes(getTeamAPlayers(event), event.getSelectedPlayersPerTeam());
+        moveExtraTeamPlayersToSubstitutes(getTeamBPlayers(event), event.getSelectedPlayersPerTeam());
+        int activeCount = getTeamAPlayers(event).size() + getTeamBPlayers(event).size();
+        if (activeCount > event.getSelectedActivePlayers()) {
+            List<PlayerRegistration> allActive = new ArrayList<>();
+            allActive.addAll(getTeamAPlayers(event));
+            allActive.addAll(getTeamBPlayers(event));
+            for (int i = event.getSelectedActivePlayers(); i < allActive.size(); i++) {
+                makeSubstitute(allActive.get(i));
+            }
+        }
+    }
+
+    private void moveExtraTeamPlayersToSubstitutes(List<PlayerRegistration> teamPlayers, int allowed) {
+        for (int i = allowed; i < teamPlayers.size(); i++) {
+            makeSubstitute(teamPlayers.get(i));
+        }
+    }
+
+    private void makeSubstitute(PlayerRegistration registration) {
+        registration.setTeamAssignment("Substitute");
+        registration.setAssignedPosition("Substitute");
+        registration.setSelectionStatus("Substitute");
+        registration.setSubstitute(true);
+    }
+
+    private String safePosition(List<String> positions, int index) {
+        if (positions == null || positions.isEmpty()) {
+            return "Player";
+        }
+        if (index >= 0 && index < positions.size()) {
+            return positions.get(index);
+        }
+        return "Player " + (index + 1);
+    }
+
+    private List<PlayerRegistration> getTeamAPlayers(SportEventWeb event) {
+        List<PlayerRegistration> result = new ArrayList<>();
+        for (PlayerRegistration registration : event.getRegistrations()) {
+            if ("Team A".equalsIgnoreCase(registration.getTeamAssignment()) && !registration.isSubstitute()) {
+                result.add(registration);
+            }
+        }
+        return result;
+    }
+
+    private List<PlayerRegistration> getTeamBPlayers(SportEventWeb event) {
+        List<PlayerRegistration> result = new ArrayList<>();
+        for (PlayerRegistration registration : event.getRegistrations()) {
+            if ("Team B".equalsIgnoreCase(registration.getTeamAssignment()) && !registration.isSubstitute()) {
+                result.add(registration);
+            }
+        }
+        return result;
+    }
+
+    private List<PlayerRegistration> getSubstitutes(SportEventWeb event) {
+        List<PlayerRegistration> result = new ArrayList<>();
+        for (PlayerRegistration registration : event.getRegistrations()) {
+            if (registration.isSubstitute() || "Substitute".equalsIgnoreCase(registration.getTeamAssignment())) {
+                result.add(registration);
+            }
+        }
+        return result;
+    }
+
+    private List<PlayerRegistration> getUnassignedPlayers(SportEventWeb event) {
+        List<PlayerRegistration> result = new ArrayList<>();
+        for (PlayerRegistration registration : event.getRegistrations()) {
+            if ("Unassigned".equalsIgnoreCase(registration.getTeamAssignment())) {
+                result.add(registration);
+            }
+        }
+        return result;
     }
 
     private SportEventWeb findEventById(int eventId) {
@@ -572,17 +670,6 @@ public class HomeController {
                 return event;
             }
         }
-
-        return null;
-    }
-
-    private FormationOption findFormationByCode(String formationCode) {
-        for (FormationOption formation : formationOptions) {
-            if (formation.getCode().equalsIgnoreCase(formationCode)) {
-                return formation;
-            }
-        }
-
         return null;
     }
 
@@ -590,13 +677,11 @@ public class HomeController {
         if (event == null) {
             return null;
         }
-
         for (PlayerRegistration registration : event.getRegistrations()) {
             if (registration.getRegistrationId() == registrationId) {
                 return registration;
             }
         }
-
         return null;
     }
 
@@ -604,13 +689,11 @@ public class HomeController {
         if (event == null) {
             return null;
         }
-
         for (PlayerRegistration registration : event.getRegistrations()) {
             if (registration.getEmail().equalsIgnoreCase(email)) {
                 return registration;
             }
         }
-
         return null;
     }
 
@@ -622,220 +705,49 @@ public class HomeController {
                 }
             }
         }
-
         return null;
     }
 
     private List<SportEventWeb> getEventsForCoach(String coachEmail) {
         List<SportEventWeb> coachEvents = new ArrayList<>();
-
         for (SportEventWeb event : events) {
             if (event.getCoachEmail().equalsIgnoreCase(coachEmail)) {
                 coachEvents.add(event);
             }
         }
-
         return coachEvents;
     }
 
     private int getTotalRegistrationsForCoach(String coachEmail) {
         int total = 0;
-
         for (SportEventWeb event : events) {
             if (event.getCoachEmail().equalsIgnoreCase(coachEmail)) {
                 total += event.getRegistrations().size();
             }
         }
-
-        return total;
-    }
-
-    private int getFinalizedEventCountForCoach(String coachEmail) {
-        int total = 0;
-
-        for (SportEventWeb event : events) {
-            if (event.getCoachEmail().equalsIgnoreCase(coachEmail) && event.isFinalized()) {
-                total++;
-            }
-        }
-
         return total;
     }
 
     private int getPublishedEventCountForCoach(String coachEmail) {
         int total = 0;
-
         for (SportEventWeb event : events) {
             if (event.getCoachEmail().equalsIgnoreCase(coachEmail) && event.isPublished()) {
                 total++;
             }
         }
-
         return total;
     }
 
-    private List<String> buildPositions(String formationCode) {
-        FormationOption formation = findFormationByCode(formationCode);
-
-        if (formation == null) {
-            return Arrays.asList("Player");
+    private String emptyToDefault(String value, String defaultValue) {
+        if (value == null || value.trim().isEmpty()) {
+            return defaultValue;
         }
-
-        return formation.getPositions();
+        return value.trim();
     }
 
-    private void autoAssignPlayers(SportEventWeb event) {
-        List<String> positions = buildPositions(event.getFormationCode());
-        int activeCount = 0;
-
-        for (PlayerRegistration registration : event.getRegistrations()) {
-            if (registration.getSelectionStatus().equals("Selected")) {
-                activeCount++;
-            }
-        }
-
-        for (PlayerRegistration registration : event.getRegistrations()) {
-
-            if (registration.getSelectionStatus().equals("Selected")
-                    || registration.getSelectionStatus().equals("Substitute")) {
-                continue;
-            }
-
-            if (activeCount < event.getMaxPlayers()) {
-                String assignedPosition;
-
-                if (activeCount < positions.size()) {
-                    assignedPosition = positions.get(activeCount);
-                } else {
-                    assignedPosition = "Player";
-                }
-
-                registration.setAssignedPosition(assignedPosition);
-                registration.setSelectionStatus("Selected");
-                registration.setSubstitute(false);
-                activeCount++;
-            } else {
-                registration.setAssignedPosition("Substitute");
-                registration.setSelectionStatus("Substitute");
-                registration.setSubstitute(true);
-            }
-        }
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
-
-    private static List<FormationOption> buildFormationOptions() {
-        List<FormationOption> options = new ArrayList<>();
-
-        // Soccer formations
-        options.add(new FormationOption("SOCCER_442", "Soccer", "4-4-2", 11,
-                "Balanced soccer formation with four defenders, four midfielders, and two forwards.",
-                Arrays.asList("GK", "LB", "LCB", "RCB", "RB", "LM", "LCM", "RCM", "RM", "LS", "RS")));
-
-        options.add(new FormationOption("SOCCER_433", "Soccer", "4-3-3", 11,
-                "Attacking soccer formation with a front three and three midfielders.",
-                Arrays.asList("GK", "LB", "LCB", "RCB", "RB", "LCM", "CM", "RCM", "LW", "ST", "RW")));
-
-        options.add(new FormationOption("SOCCER_352", "Soccer", "3-5-2", 11,
-                "Midfield-heavy soccer formation using three center backs, wing backs, and two forwards.",
-                Arrays.asList("GK", "LCB", "CB", "RCB", "LWB", "LCM", "CAM", "RCM", "RWB", "LS", "RS")));
-
-        options.add(new FormationOption("SOCCER_4231", "Soccer", "4-2-3-1", 11,
-                "Modern soccer shape with two defensive midfielders, three attacking midfielders, and one striker.",
-                Arrays.asList("GK", "LB", "LCB", "RCB", "RB", "LDM", "RDM", "LAM", "CAM", "RAM", "ST")));
-
-        options.add(new FormationOption("SOCCER_321", "Soccer", "3-2-1", 7,
-                "Small-sided soccer formation with goalkeeper, three defenders, two midfielders, and one striker.",
-                Arrays.asList("GK", "LD", "CD", "RD", "LM", "RM", "ST")));
-
-        options.add(new FormationOption("SOCCER_5V5", "Soccer", "5v5", 5,
-                "Small-sided soccer formation for five active players.",
-                Arrays.asList("GK", "LD", "RD", "CM", "ST")));
-
-        // Basketball formations
-        options.add(new FormationOption("BASKETBALL_STANDARD", "Basketball", "Standard 5", 5,
-                "Standard basketball lineup using point guard, shooting guard, small forward, power forward, and center.",
-                Arrays.asList("PG", "SG", "SF", "PF", "C")));
-
-        options.add(new FormationOption("BASKETBALL_212", "Basketball", "2-1-2", 5,
-                "Basketball zone-style shape with two guards, one center, and two forwards.",
-                Arrays.asList("PG", "SG", "C", "SF", "PF")));
-
-        options.add(new FormationOption("BASKETBALL_122", "Basketball", "1-2-2", 5,
-                "Basketball shape with one top guard, two wings, and two inside players.",
-                Arrays.asList("PG", "SG", "SF", "PF", "C")));
-
-        options.add(new FormationOption("BASKETBALL_131", "Basketball", "1-3-1", 5,
-                "Basketball shape with one top player, three middle players, and one back player.",
-                Arrays.asList("Top", "LW", "Middle", "RW", "Back")));
-
-        options.add(new FormationOption("BASKETBALL_3V3", "Basketball", "3v3", 3,
-                "Small-sided basketball lineup for three active players.",
-                Arrays.asList("Guard", "Wing", "Post")));
-
-        // Volleyball formations
-        options.add(new FormationOption("VOLLEYBALL_51", "Volleyball", "5-1", 6,
-                "Volleyball system with one setter and five attacking options across six court zones.",
-                Arrays.asList("Setter", "Outside Hitter", "Middle Blocker", "Opposite Hitter", "Libero", "Outside Hitter")));
-
-        options.add(new FormationOption("VOLLEYBALL_62", "Volleyball", "6-2", 6,
-                "Volleyball system using two setters who can also support attacking rotations.",
-                Arrays.asList("Setter", "Outside Hitter", "Middle Blocker", "Setter/Opposite", "Libero", "Outside Hitter")));
-
-        options.add(new FormationOption("VOLLEYBALL_42", "Volleyball", "4-2", 6,
-                "Volleyball system with four hitters and two setters.",
-                Arrays.asList("Setter", "Outside Hitter", "Middle Blocker", "Setter", "Defensive Specialist", "Opposite Hitter")));
-
-        options.add(new FormationOption("VOLLEYBALL_BASIC", "Volleyball", "Basic 6 Zones", 6,
-                "Basic six-zone volleyball layout for recreational events.",
-                Arrays.asList("Zone 1", "Zone 2", "Zone 3", "Zone 4", "Zone 5", "Zone 6")));
-
-        options.add(new FormationOption("VOLLEYBALL_BEACH", "Volleyball", "Beach Doubles", 2,
-                "Two-player volleyball formation for beach or small-sided play.",
-                Arrays.asList("Left Side", "Right Side")));
-
-        // Hockey formations
-        options.add(new FormationOption("HOCKEY_123", "Hockey", "1-2-3", 6,
-                "Ice hockey-style six-player lineup with goalie, two defensemen, and three forwards.",
-                Arrays.asList("Goalie", "Left Defense", "Right Defense", "Left Wing", "Center", "Right Wing")));
-
-        options.add(new FormationOption("HOCKEY_1212", "Hockey", "1-2-1-2", 6,
-                "Hockey lineup with goalie, two defensemen, one center, and two wings.",
-                Arrays.asList("Goalie", "Left Defense", "Right Defense", "Center", "Left Wing", "Right Wing")));
-
-        options.add(new FormationOption("HOCKEY_1221", "Hockey", "1-2-2-1", 6,
-                "Hockey lineup with goalie, two defenders, two midfield/wing players, and one forward.",
-                Arrays.asList("Goalie", "Left Defense", "Right Defense", "Left Mid/Wing", "Right Mid/Wing", "Forward")));
-
-        options.add(new FormationOption("HOCKEY_FIELD_3331", "Hockey", "Field 3-3-3-1", 11,
-                "Field hockey-style lineup with goalkeeper, defense, midfield, forwards, and striker.",
-                Arrays.asList("Goalkeeper", "Left Back", "Center Back", "Right Back", "Left Mid", "Center Mid", "Right Mid", "Left Forward", "Center Forward", "Right Forward", "Striker")));
-
-        // Tennis formations
-        options.add(new FormationOption("TENNIS_SINGLES", "Tennis", "Singles", 1,
-                "One-player tennis lineup for singles play.",
-                Arrays.asList("Singles Player")));
-
-        options.add(new FormationOption("TENNIS_DOUBLES_STANDARD", "Tennis", "Doubles Standard", 2,
-                "Two-player tennis doubles lineup with baseline and net responsibilities.",
-                Arrays.asList("Baseline Player", "Net Player")));
-
-        options.add(new FormationOption("TENNIS_DOUBLES_TWO_BACK", "Tennis", "Doubles Two Back", 2,
-                "Defensive doubles setup with both players covering from the baseline.",
-                Arrays.asList("Left Baseline", "Right Baseline")));
-
-        options.add(new FormationOption("TENNIS_DOUBLES_TWO_UP", "Tennis", "Doubles Two Up", 2,
-                "Aggressive doubles setup with both players positioned near the net.",
-                Arrays.asList("Left Net", "Right Net")));
-
-        options.add(new FormationOption("TENNIS_I_FORMATION", "Tennis", "Doubles I Formation", 2,
-                "Doubles setup using a server and a net player near the center line.",
-                Arrays.asList("Server", "Net Player")));
-
-        return options;
-    }
-
-    // =========================
-    // DATA CLASSES
-    // =========================
 
     public static class UserAccount {
         private int userId;
@@ -852,76 +764,13 @@ public class HomeController {
             this.role = role;
         }
 
-        public int getUserId() {
-            return userId;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getEmail() {
-            return email;
-        }
-
-        public String getPassword() {
-            return password;
-        }
-
-        public String getRole() {
-            return role;
-        }
-
-        public boolean isCoach() {
-            return role.equalsIgnoreCase("COACH");
-        }
-
-        public boolean isPlayer() {
-            return role.equalsIgnoreCase("PLAYER");
-        }
-    }
-
-    public static class FormationOption {
-        private String code;
-        private String sport;
-        private String name;
-        private int activePlayers;
-        private String description;
-        private List<String> positions;
-
-        public FormationOption(String code, String sport, String name, int activePlayers,
-                               String description, List<String> positions) {
-            this.code = code;
-            this.sport = sport;
-            this.name = name;
-            this.activePlayers = activePlayers;
-            this.description = description;
-            this.positions = positions;
-        }
-
-        public String getCode() {
-            return code;
-        }
-
-        public String getSport() {
-            return sport;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public int getActivePlayers() {
-            return activePlayers;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public List<String> getPositions() {
-            return positions;
-        }
+        public int getUserId() { return userId; }
+        public String getName() { return name; }
+        public String getEmail() { return email; }
+        public String getPassword() { return password; }
+        public String getRole() { return role; }
+        public boolean isCoach() { return role.equalsIgnoreCase("COACH"); }
+        public boolean isPlayer() { return role.equalsIgnoreCase("PLAYER"); }
     }
 
     public static class SportEventWeb {
@@ -930,11 +779,13 @@ public class HomeController {
         private String sportType;
         private String eventDate;
         private String registrationDeadLine;
-        private String teamName;
-        private int maxPlayers;
-        private String formationCode;
-        private String formationName;
-        private String formationDescription;
+        private String teamAName;
+        private String teamBName;
+        private int selectedPlayersPerTeam;
+        private int sportMaxPlayersPerTeam;
+        private int expectedPlayers;
+        private String teamAFormation;
+        private String teamBFormation;
         private String coachName;
         private String coachEmail;
         private String status;
@@ -943,21 +794,22 @@ public class HomeController {
         private boolean published;
         private List<PlayerRegistration> registrations;
 
-        public SportEventWeb(int eventId, String eventName, String sportType,
-                             String eventDate, String registrationDeadLine,
-                             String teamName, int maxPlayers,
-                             String formationCode, String formationName, String formationDescription,
-                             String coachName, String coachEmail) {
+        public SportEventWeb(int eventId, String eventName, String sportType, String eventDate,
+                             String registrationDeadLine, String teamAName, String teamBName,
+                             int selectedPlayersPerTeam, int sportMaxPlayersPerTeam, int expectedPlayers,
+                             String teamAFormation, String teamBFormation, String coachName, String coachEmail) {
             this.eventId = eventId;
             this.eventName = eventName;
             this.sportType = sportType;
             this.eventDate = eventDate;
             this.registrationDeadLine = registrationDeadLine;
-            this.teamName = teamName;
-            this.maxPlayers = maxPlayers;
-            this.formationCode = formationCode;
-            this.formationName = formationName;
-            this.formationDescription = formationDescription;
+            this.teamAName = teamAName;
+            this.teamBName = teamBName;
+            this.selectedPlayersPerTeam = selectedPlayersPerTeam;
+            this.sportMaxPlayersPerTeam = sportMaxPlayersPerTeam;
+            this.expectedPlayers = expectedPlayers;
+            this.teamAFormation = teamAFormation;
+            this.teamBFormation = teamBFormation;
             this.coachName = coachName;
             this.coachEmail = coachEmail;
             this.status = "Registration Open";
@@ -967,72 +819,58 @@ public class HomeController {
             this.registrations = new ArrayList<>();
         }
 
-        public int getEventId() {
-            return eventId;
+        public int getEventId() { return eventId; }
+        public String getEventName() { return eventName; }
+        public String getSportType() { return sportType; }
+        public String getEventDate() { return eventDate; }
+        public String getRegistrationDeadLine() { return registrationDeadLine; }
+        public String getTeamAName() { return teamAName; }
+        public String getTeamBName() { return teamBName; }
+        public int getSelectedPlayersPerTeam() { return selectedPlayersPerTeam; }
+        public int getSelectedActivePlayers() { return selectedPlayersPerTeam * 2; }
+        public int getSportMaxPlayersPerTeam() { return sportMaxPlayersPerTeam; }
+        public int getSportMaxActivePlayers() { return sportMaxPlayersPerTeam * 2; }
+        public int getExpectedPlayers() { return expectedPlayers; }
+        public String getTeamAFormation() { return teamAFormation; }
+        public String getTeamBFormation() { return teamBFormation; }
+        public String getCoachName() { return coachName; }
+        public String getCoachEmail() { return coachEmail; }
+        public String getStatus() { return status; }
+        public boolean isRegistrationClosed() { return registrationClosed; }
+        public boolean isFinalized() { return finalized; }
+        public boolean isPublished() { return published; }
+        public List<PlayerRegistration> getRegistrations() { return registrations; }
+        public int getRegisteredCount() { return registrations.size(); }
+        public String getMatchFormat() { return selectedPlayersPerTeam + "v" + selectedPlayersPerTeam; }
+
+        public int getActiveCount() {
+            int count = 0;
+            for (PlayerRegistration registration : registrations) {
+                if (!registration.isSubstitute() && ("Team A".equalsIgnoreCase(registration.getTeamAssignment()) || "Team B".equalsIgnoreCase(registration.getTeamAssignment()))) {
+                    count++;
+                }
+            }
+            return count;
         }
 
-        public String getEventName() {
-            return eventName;
+        public int getSubstituteCount() {
+            int count = 0;
+            for (PlayerRegistration registration : registrations) {
+                if (registration.isSubstitute() || "Substitute".equalsIgnoreCase(registration.getTeamAssignment())) {
+                    count++;
+                }
+            }
+            return count;
         }
 
-        public String getSportType() {
-            return sportType;
-        }
-
-        public String getEventDate() {
-            return eventDate;
-        }
-
-        public String getRegistrationDeadLine() {
-            return registrationDeadLine;
-        }
-
-        public String getTeamName() {
-            return teamName;
-        }
-
-        public int getMaxPlayers() {
-            return maxPlayers;
-        }
-
-        public String getFormationCode() {
-            return formationCode;
-        }
-
-        public String getFormationName() {
-            return formationName;
-        }
-
-        public String getFormationDescription() {
-            return formationDescription;
-        }
-
-        public String getCoachName() {
-            return coachName;
-        }
-
-        public String getCoachEmail() {
-            return coachEmail;
-        }
-
-        public String getStatus() {
-            return status;
-        }
-
-        public boolean isRegistrationClosed() {
-            return registrationClosed;
-        }
-
-        public boolean isFinalized() {
-            return finalized;
-        }
-
-        public boolean isPublished() {
-            return published;
-        }
-
-        public List<PlayerRegistration> getRegistrations() {
-            return registrations;
+        public int getUnassignedCount() {
+            int count = 0;
+            for (PlayerRegistration registration : registrations) {
+                if ("Unassigned".equalsIgnoreCase(registration.getTeamAssignment())) {
+                    count++;
+                }
+            }
+            return count;
         }
 
         public boolean isRegistrationAvailable() {
@@ -1041,37 +879,16 @@ public class HomeController {
             return !registrationClosed && !finalized && !today.isAfter(deadline);
         }
 
-        public void setStatus(String status) {
-            this.status = status;
-        }
-
-        public void setRegistrationClosed(boolean registrationClosed) {
-            this.registrationClosed = registrationClosed;
-        }
-
-        public void setFinalized(boolean finalized) {
-            this.finalized = finalized;
-        }
-
-        public void setPublished(boolean published) {
-            this.published = published;
-        }
-
-        public void setFormationCode(String formationCode) {
-            this.formationCode = formationCode;
-        }
-
-        public void setFormationName(String formationName) {
-            this.formationName = formationName;
-        }
-
-        public void setFormationDescription(String formationDescription) {
-            this.formationDescription = formationDescription;
-        }
-
-        public void setMaxPlayers(int maxPlayers) {
-            this.maxPlayers = maxPlayers;
-        }
+        public void setStatus(String status) { this.status = status; }
+        public void setRegistrationClosed(boolean registrationClosed) { this.registrationClosed = registrationClosed; }
+        public void setFinalized(boolean finalized) { this.finalized = finalized; }
+        public void setPublished(boolean published) { this.published = published; }
+        public void setTeamAName(String teamAName) { this.teamAName = teamAName; }
+        public void setTeamBName(String teamBName) { this.teamBName = teamBName; }
+        public void setSelectedPlayersPerTeam(int selectedPlayersPerTeam) { this.selectedPlayersPerTeam = selectedPlayersPerTeam; }
+        public void setExpectedPlayers(int expectedPlayers) { this.expectedPlayers = expectedPlayers; }
+        public void setTeamAFormation(String teamAFormation) { this.teamAFormation = teamAFormation; }
+        public void setTeamBFormation(String teamBFormation) { this.teamBFormation = teamBFormation; }
     }
 
     public static class PlayerRegistration {
@@ -1081,75 +898,183 @@ public class HomeController {
         private String requestedPosition;
         private String assignedPosition;
         private String selectionStatus;
+        private String teamAssignment;
         private boolean substitute;
 
-        public PlayerRegistration(int registrationId, String playerName,
-                                  String email, String requestedPosition) {
+        public PlayerRegistration(int registrationId, String playerName, String email, String requestedPosition) {
             this.registrationId = registrationId;
             this.playerName = playerName;
             this.email = email;
             this.requestedPosition = requestedPosition;
             this.assignedPosition = "Not assigned yet";
             this.selectionStatus = "Registered";
+            this.teamAssignment = "Unassigned";
             this.substitute = false;
         }
 
-        public int getRegistrationId() {
-            return registrationId;
-        }
-
-        public String getPlayerName() {
-            return playerName;
-        }
-
-        public String getEmail() {
-            return email;
-        }
-
-        public String getRequestedPosition() {
-            return requestedPosition;
-        }
-
-        public String getAssignedPosition() {
-            return assignedPosition;
-        }
-
-        public String getSelectionStatus() {
-            return selectionStatus;
-        }
-
-        public boolean isSubstitute() {
-            return substitute;
-        }
-
-        public void setAssignedPosition(String assignedPosition) {
-            this.assignedPosition = assignedPosition;
-        }
-
-        public void setSelectionStatus(String selectionStatus) {
-            this.selectionStatus = selectionStatus;
-        }
-
-        public void setSubstitute(boolean substitute) {
-            this.substitute = substitute;
-        }
+        public int getRegistrationId() { return registrationId; }
+        public String getPlayerName() { return playerName; }
+        public String getEmail() { return email; }
+        public String getRequestedPosition() { return requestedPosition; }
+        public String getAssignedPosition() { return assignedPosition; }
+        public String getSelectionStatus() { return selectionStatus; }
+        public String getTeamAssignment() { return teamAssignment; }
+        public boolean isSubstitute() { return substitute; }
+        public void setAssignedPosition(String assignedPosition) { this.assignedPosition = assignedPosition; }
+        public void setSelectionStatus(String selectionStatus) { this.selectionStatus = selectionStatus; }
+        public void setTeamAssignment(String teamAssignment) { this.teamAssignment = teamAssignment; }
+        public void setSubstitute(boolean substitute) { this.substitute = substitute; }
     }
 
     public static class RegistrationSearchResult {
         private SportEventWeb event;
         private PlayerRegistration registration;
-
         public RegistrationSearchResult(SportEventWeb event, PlayerRegistration registration) {
             this.event = event;
             this.registration = registration;
         }
+        public SportEventWeb getEvent() { return event; }
+        public PlayerRegistration getRegistration() { return registration; }
+    }
 
-        public SportEventWeb getEvent() {
-            return event;
+    public static class SportRules {
+        public static List<String> getSports() {
+            return Arrays.asList("Soccer", "Basketball", "Volleyball", "Hockey", "Tennis");
         }
 
-        public PlayerRegistration getRegistration() {
-            return registration;
+        public static Map<String, Integer> getMaxPlayersPerTeamMap() {
+            Map<String, Integer> map = new LinkedHashMap<>();
+            map.put("Soccer", 11);
+            map.put("Basketball", 5);
+            map.put("Volleyball", 6);
+            map.put("Hockey", 6);
+            map.put("Tennis", 2);
+            return map;
+        }
+
+        public static int getMaxPlayersPerTeam(String sport) {
+            if (sport == null) return 11;
+            String value = sport.toLowerCase();
+            if (value.contains("basketball")) return 5;
+            if (value.contains("volleyball")) return 6;
+            if (value.contains("hockey")) return 6;
+            if (value.contains("tennis")) return 2;
+            return 11;
+        }
+
+        public static List<Integer> playersPerTeamOptions(String sport) {
+            List<Integer> options = new ArrayList<>();
+            for (int i = 1; i <= getMaxPlayersPerTeam(sport); i++) {
+                options.add(i);
+            }
+            return options;
+        }
+
+        public static String defaultFormation(String sport, int playersPerTeam) {
+            List<String> formations = formationOptions(sport, playersPerTeam);
+            return formations.isEmpty() ? playersPerTeam + " Players" : formations.get(0);
+        }
+
+        public static List<String> formationOptions(String sport, int playersPerTeam) {
+            if (sport == null) return Arrays.asList(playersPerTeam + " Players");
+            String value = sport.toLowerCase();
+            if (value.contains("basketball")) return basketballFormations(playersPerTeam);
+            if (value.contains("volleyball")) return volleyballFormations(playersPerTeam);
+            if (value.contains("hockey")) return hockeyFormations(playersPerTeam);
+            if (value.contains("tennis")) return tennisFormations(playersPerTeam);
+            return soccerFormations(playersPerTeam);
+        }
+
+        public static List<String> positionsFor(String sport, int playersPerTeam, String formation) {
+            List<String> positions = new ArrayList<>();
+            if (playersPerTeam <= 0) {
+                positions.add("Player");
+                return positions;
+            }
+            if (sport != null && sport.toLowerCase().contains("basketball")) {
+                List<String> base = Arrays.asList("Guard", "Wing", "Forward", "Power Forward", "Center");
+                return take(base, playersPerTeam);
+            }
+            if (sport != null && sport.toLowerCase().contains("volleyball")) {
+                List<String> base = Arrays.asList("Setter", "Outside Hitter", "Middle Blocker", "Opposite", "Libero", "Defensive Specialist");
+                return take(base, playersPerTeam);
+            }
+            if (sport != null && sport.toLowerCase().contains("hockey")) {
+                List<String> base = Arrays.asList("Goalie", "Left Defense", "Right Defense", "Center", "Left Wing", "Right Wing");
+                return take(base, playersPerTeam);
+            }
+            if (sport != null && sport.toLowerCase().contains("tennis")) {
+                if (playersPerTeam == 1) return Arrays.asList("Singles Player");
+                return Arrays.asList("Player 1", "Player 2");
+            }
+            if (playersPerTeam == 1) return Arrays.asList("Player 1");
+            positions.add("Goalkeeper");
+            for (int i = 2; i <= playersPerTeam; i++) {
+                positions.add("Player " + i);
+            }
+            return positions;
+        }
+
+        private static List<String> soccerFormations(int n) {
+            switch (n) {
+                case 1: return Arrays.asList("1 Player");
+                case 2: return Arrays.asList("1-1", "2 Attackers");
+                case 3: return Arrays.asList("1-1-1", "1-2");
+                case 4: return Arrays.asList("1-2-1", "2-2");
+                case 5: return Arrays.asList("1-2-1", "2-1-1", "1-1-2");
+                case 6: return Arrays.asList("2-2-1", "1-3-1", "2-1-2");
+                case 7: return Arrays.asList("2-3-1", "3-2-1", "2-2-2");
+                case 8: return Arrays.asList("3-3-1", "2-3-2", "3-2-2");
+                case 9: return Arrays.asList("3-3-2", "4-3-1", "3-2-3");
+                case 10: return Arrays.asList("4-3-2", "3-4-2", "4-2-3");
+                default: return Arrays.asList("4-4-2", "4-3-3", "3-5-2", "5-3-2");
+            }
+        }
+
+        private static List<String> basketballFormations(int n) {
+            switch (n) {
+                case 1: return Arrays.asList("1 Guard");
+                case 2: return Arrays.asList("1-1", "2 Guards");
+                case 3: return Arrays.asList("1-1-1", "2-1");
+                case 4: return Arrays.asList("2-2", "1-2-1");
+                default: return Arrays.asList("2-1-2", "1-2-2", "2-2-1");
+            }
+        }
+
+        private static List<String> volleyballFormations(int n) {
+            switch (n) {
+                case 1: return Arrays.asList("1 Player");
+                case 2: return Arrays.asList("2 Player Rotation");
+                case 3: return Arrays.asList("3 Player Rotation");
+                case 4: return Arrays.asList("4 Player Rotation", "Diamond 4");
+                case 5: return Arrays.asList("5 Player Rotation", "Setter 5");
+                default: return Arrays.asList("6 Player Rotation", "Standard 6");
+            }
+        }
+
+        private static List<String> hockeyFormations(int n) {
+            switch (n) {
+                case 1: return Arrays.asList("1 Skater");
+                case 2: return Arrays.asList("1-1", "2 Skaters");
+                case 3: return Arrays.asList("1 Goalie - 2 Skaters", "1-1-1");
+                case 4: return Arrays.asList("1-1-2", "2-2");
+                case 5: return Arrays.asList("1-2-2", "2-3");
+                default: return Arrays.asList("1-2-3", "2-4");
+            }
+        }
+
+        private static List<String> tennisFormations(int n) {
+            if (n == 1) return Arrays.asList("Singles");
+            return Arrays.asList("Doubles", "Two Back", "Two Up");
+        }
+
+        private static List<String> take(List<String> base, int count) {
+            List<String> result = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                if (i < base.size()) result.add(base.get(i));
+                else result.add("Player " + (i + 1));
+            }
+            return result;
         }
     }
 }

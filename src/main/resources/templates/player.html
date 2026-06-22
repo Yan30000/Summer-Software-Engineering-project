@@ -1,110 +1,12 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Player Dashboard - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
+<head><title>Player Dashboard - SEPS</title><link rel="stylesheet" href="/css/styles.css"></head>
 <body>
-
-<div class="navbar">
-    <h2>Player Dashboard</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/player">Events</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h1>
-            Welcome,
-            <span th:text="${currentUser.name}"></span>
-        </h1>
-
-        <p>
-            Browse available sport events, search by coach name, register before the deadline,
-            and view your published graphical lineup.
-        </p>
-    </div>
-
-    <div class="card">
-        <h2>Search Events by Coach Name</h2>
-
-        <form action="/player" method="get" class="inline-form">
-            <div>
-                <label for="coachName">Coach Name</label>
-                <input type="text"
-                       id="coachName"
-                       name="coachName"
-                       th:value="${coachName}"
-                       placeholder="Example: Daniel">
-            </div>
-
-            <button type="submit" class="btn">Search</button>
-            <a href="/player" class="btn btn-secondary">Clear</a>
-        </form>
-    </div>
-
-    <div class="card">
-        <h2>Available Sport Events</h2>
-
-        <p th:if="${events.size() == 0}" class="notice">
-            No events are available.
-        </p>
-
-        <table th:if="${events.size() > 0}">
-            <tr>
-                <th>ID</th>
-                <th>Event</th>
-                <th>Coach</th>
-                <th>Sport</th>
-                <th>Date</th>
-                <th>Deadline</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-
-            <tr th:each="event : ${events}">
-                <td th:text="${event.eventId}"></td>
-                <td th:text="${event.eventName}"></td>
-                <td th:text="${event.coachName}"></td>
-                <td th:text="${event.sportType}"></td>
-                <td th:text="${event.eventDate}"></td>
-                <td th:text="${event.registrationDeadLine}"></td>
-
-                <td>
-                    <span th:if="${event.registrationAvailable}"
-                          class="badge badge-open">
-                        Open
-                    </span>
-
-                    <span th:if="${event.registrationAvailable == false && event.published == false}"
-                          class="badge badge-danger"
-                          th:text="${event.status}">
-                    </span>
-
-                    <span th:if="${event.published}"
-                          class="badge badge-final">
-                        Published
-                    </span>
-                </td>
-
-                <td>
-                    <a th:href="@{'/player/event/' + ${event.eventId}}"
-                       class="btn btn-secondary">
-                        View Details
-                    </a>
-
-                    <a th:href="@{'/player/lineup/' + ${event.eventId}}"
-                       class="btn">
-                        View Lineup
-                    </a>
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/player">Dashboard</a><a href="/logout">Logout</a></div></nav>
+<main class="container">
+    <section class="page-header"><div><span class="kicker">Player Dashboard</span><h1>Welcome, <span th:text="${currentUser.name}">Player</span></h1><p>Browse events, register, request a position, and view published lineups.</p></div></section>
+    <section class="card"><form action="/player" method="get" class="search-form"><input name="coachName" th:value="${coachName}" placeholder="Search by coach name"><button class="btn btn-primary">Search</button><a class="btn btn-light" href="/player">Clear</a></form></section>
+    <section class="card"><div class="section-title"><span>Events</span><h2>Available Matches</h2></div><div th:if="${events.isEmpty()}" class="empty-state"><h3>No events yet</h3></div><div class="event-grid" th:if="${!events.isEmpty()}"><article class="event-card" th:each="event : ${events}"><div class="event-card-top"><div><span class="kicker" th:text="${event.sportType}"></span><h3 th:text="${event.eventName}"></h3></div><span class="badge" th:text="${event.status}"></span></div><div class="match-line"><strong th:text="${event.teamAName}"></strong><span>vs</span><strong th:text="${event.teamBName}"></strong></div><div class="mini-stats"><div><span>Format</span><strong th:text="${event.matchFormat}"></strong></div><div><span>Registered</span><strong th:text="${event.registeredCount}"></strong></div><div><span>Active</span><strong th:text="${event.selectedActivePlayers}"></strong></div><div><span>Subs</span><strong th:text="${event.substituteCount}"></strong></div></div><p class="muted"><strong>Coach:</strong> <span th:text="${event.coachName}"></span><br><strong>Date:</strong> <span th:text="${event.eventDate}"></span></p><div class="button-row"><a class="btn btn-primary" th:href="@{'/player/event/' + ${event.eventId}}">View Event</a><a class="btn btn-success" th:if="${event.published}" th:href="@{'/player/lineup/' + ${event.eventId}}">View Lineup</a></div></article></div></section>
+</main>
 </body>
 </html>

@@ -1,82 +1,8 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Register for Event - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
+<head><title>Register for Event - SEPS</title><link rel="stylesheet" href="/css/styles.css"></head>
 <body>
-
-<div class="navbar">
-    <h2>Register for Event</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/player">Player Dashboard</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h1>
-            Register for
-            <span th:text="${event.eventName}"></span>
-        </h1>
-
-        <p>
-            <strong>Coach:</strong>
-            <span th:text="${event.coachName}"></span>
-        </p>
-
-        <p>
-            <strong>Sport:</strong>
-            <span th:text="${event.sportType}"></span>
-        </p>
-
-        <p>
-            <strong>Date:</strong>
-            <span th:text="${event.eventDate}"></span>
-        </p>
-
-        <p>
-            <strong>Deadline:</strong>
-            <span th:text="${event.registrationDeadLine}"></span>
-        </p>
-
-        <p>
-            <strong>Formation:</strong>
-            <span th:text="${event.formationName}"></span>
-        </p>
-
-        <form action="/player/register" method="post">
-            <input type="hidden"
-                   name="eventId"
-                   th:value="${event.eventId}">
-
-            <div class="form-group">
-                <label for="requestedPosition">Requested Position</label>
-
-                <select id="requestedPosition"
-                        name="requestedPosition"
-                        required>
-                    <option value="">Select position</option>
-
-                    <option th:each="position : ${positionOptions}"
-                            th:value="${position}"
-                            th:text="${position}">
-                    </option>
-                </select>
-            </div>
-
-            <button type="submit" class="btn btn-success">
-                Submit Registration
-            </button>
-
-            <a href="/player" class="btn btn-secondary">
-                Cancel
-            </a>
-        </form>
-    </div>
-</div>
-
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/player">Dashboard</a><a th:href="@{'/player/event/' + ${event.eventId}}">Event Details</a><a href="/logout">Logout</a></div></nav>
+<main class="container narrow"><section class="card"><span class="kicker">Register</span><h1 th:text="${event.eventName}"></h1><p class="muted">Choose your requested position. The coach will assign Team A, Team B, or Substitute.</p><form action="/player/register" method="post" class="form"><input type="hidden" name="eventId" th:value="${event.eventId}"><label>Requested Position</label><select name="requestedPosition" required><option th:each="position : ${positionOptions}" th:value="${position}" th:text="${position}"></option></select><button class="btn btn-primary">Submit Registration</button></form></section></main>
 </body>
 </html>

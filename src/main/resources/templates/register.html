@@ -1,68 +1,21 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Register - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
+<head><title>Create Account - SEPS</title><link rel="stylesheet" href="/css/styles.css"></head>
 <body>
-
-<div class="navbar">
-    <h2>Create Account</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/login">Login</a>
-    </div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h1>Register Account</h1>
-        <p>Create a coach or player account to use SEPS.</p>
-
-        <div th:if="${error}" class="error" th:text="${error}"></div>
-
-        <form action="/register" method="post">
-            <div class="form-group">
-                <label for="name">Full Name</label>
-                <input type="text"
-                       id="name"
-                       name="name"
-                       placeholder="Example: John Brown"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email"
-                       id="email"
-                       name="email"
-                       placeholder="Example: john@example.com"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password"
-                       id="password"
-                       name="password"
-                       placeholder="Enter password"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label for="role">Account Type</label>
-                <select id="role" name="role" required>
-                    <option value="">Select role</option>
-                    <option value="COACH">Coach</option>
-                    <option value="PLAYER">Player</option>
-                </select>
-            </div>
-
-            <button type="submit" class="btn btn-success">Create Account</button>
-            <a href="/" class="btn btn-secondary">Cancel</a>
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/">Home</a><a href="/login">Login</a></div></nav>
+<main class="auth-page">
+    <section class="auth-card">
+        <span class="kicker">Join SEPS</span><h1>Create Account</h1><p>Register as a coach or player.</p>
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+        <form action="/register" method="post" class="form">
+            <label>Full Name</label><input type="text" name="name" required>
+            <label>Email Address</label><input type="email" name="email" required>
+            <label>Password</label><input type="password" name="password" required>
+            <label>Account Type</label><select name="role" required><option value="PLAYER">Player</option><option value="COACH">Coach</option></select>
+            <button class="btn btn-primary" type="submit">Create Account</button>
         </form>
-    </div>
-</div>
-
+        <p class="muted">Already have an account? <a href="/login">Login</a></p>
+    </section>
+</main>
 </body>
 </html>

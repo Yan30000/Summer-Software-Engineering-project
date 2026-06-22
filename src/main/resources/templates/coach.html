@@ -1,115 +1,33 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Coach Dashboard - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
+<head><title>Coach Dashboard - SEPS</title><link rel="stylesheet" href="/css/styles.css"></head>
 <body>
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/coach">Dashboard</a><a href="/coach/create-event">Create Event</a><a href="/logout">Logout</a></div></nav>
+<main class="container">
+    <section class="page-header">
+        <div><span class="kicker">Coach Dashboard</span><h1>Welcome, <span th:text="${currentUser.name}">Coach</span></h1><p>Create matches, manage unlimited registrations, split teams, and publish lineups.</p></div>
+        <a class="btn btn-primary" href="/coach/create-event">Create New Match</a>
+    </section>
 
-<div class="navbar">
-    <h2>Coach Dashboard</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/coach/create-event">Create Event</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-
-<div class="container">
-
-    <div class="card">
-        <h1>
-            Welcome,
-            <span th:text="${currentUser.name}"></span>
-        </h1>
-
-        <p>
-            Manage your sport events, player registrations, formations,
-            graphical lineups, substitutes, and published lineup cards.
-        </p>
+    <div class="cards-3 stats">
+        <div class="card"><span>Total Events</span><strong th:text="${totalEvents}">0</strong></div>
+        <div class="card"><span>Total Registrations</span><strong th:text="${totalRegistrations}">0</strong></div>
+        <div class="card"><span>Published</span><strong th:text="${publishedEvents}">0</strong></div>
     </div>
 
-    <div class="grid">
-        <div class="stat-card">
-            <h2 th:text="${totalEvents}"></h2>
-            <p>Your Events</p>
+    <section class="card">
+        <div class="section-title"><span>Your Events</span><h2>Event Management</h2></div>
+        <div th:if="${events.isEmpty()}" class="empty-state"><h3>No events yet</h3><p>Create your first match event.</p><a class="btn btn-primary" href="/coach/create-event">Create Event</a></div>
+        <div class="event-grid" th:if="${!events.isEmpty()}">
+            <article class="event-card" th:each="event : ${events}">
+                <div class="event-card-top"><div><span class="kicker" th:text="${event.sportType}">Sport</span><h3 th:text="${event.eventName}">Event</h3></div><span class="badge" th:text="${event.status}">Open</span></div>
+                <div class="match-line"><strong th:text="${event.teamAName}">Team A</strong><span>vs</span><strong th:text="${event.teamBName}">Team B</strong></div>
+                <div class="mini-stats"><div><span>Format</span><strong th:text="${event.matchFormat}">5v5</strong></div><div><span>Reg.</span><strong th:text="${event.registeredCount}">0</strong></div><div><span>Active</span><strong th:text="${event.activeCount + '/' + event.selectedActivePlayers}">0/10</strong></div><div><span>Subs</span><strong th:text="${event.substituteCount}">0</strong></div></div>
+                <p class="muted"><strong>Date:</strong> <span th:text="${event.eventDate}"></span> · <strong>Deadline:</strong> <span th:text="${event.registrationDeadLine}"></span></p>
+                <a class="btn btn-primary full" th:href="@{'/coach/event/' + ${event.eventId}}">Manage Event</a>
+            </article>
         </div>
-
-        <div class="stat-card">
-            <h2 th:text="${totalRegistrations}"></h2>
-            <p>Player Registrations</p>
-        </div>
-
-        <div class="stat-card">
-            <h2 th:text="${publishedEvents}"></h2>
-            <p>Published Lineups</p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2>Your Sport Events</h2>
-
-        <a href="/coach/create-event" class="btn">Create Sport Event</a>
-
-        <p th:if="${events.size() == 0}" class="notice">
-            You have not created any events yet.
-        </p>
-
-        <table th:if="${events.size() > 0}">
-            <tr>
-                <th>ID</th>
-                <th>Event</th>
-                <th>Sport</th>
-                <th>Date</th>
-                <th>Team</th>
-                <th>Formation</th>
-                <th>Status</th>
-                <th>Players</th>
-                <th>Action</th>
-            </tr>
-
-            <tr th:each="event : ${events}">
-                <td th:text="${event.eventId}"></td>
-                <td th:text="${event.eventName}"></td>
-                <td th:text="${event.sportType}"></td>
-                <td th:text="${event.eventDate}"></td>
-                <td th:text="${event.teamName}"></td>
-                <td th:text="${event.formationName}"></td>
-
-                <td>
-                    <span th:if="${event.status == 'Registration Open'}"
-                          class="badge badge-open"
-                          th:text="${event.status}">
-                    </span>
-
-                    <span th:if="${event.status == 'Registration Closed'}"
-                          class="badge badge-danger"
-                          th:text="${event.status}">
-                    </span>
-
-                    <span th:if="${event.status == 'Lineup Finalized'}"
-                          class="badge badge-final"
-                          th:text="${event.status}">
-                    </span>
-
-                    <span th:if="${event.status == 'Lineup Published'}"
-                          class="badge badge-final"
-                          th:text="${event.status}">
-                    </span>
-                </td>
-
-                <td th:text="${event.registrations.size()}"></td>
-
-                <td>
-                    <a th:href="@{'/coach/event/' + ${event.eventId}}"
-                       class="btn btn-secondary">
-                        Manage
-                    </a>
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
+    </section>
+</main>
 </body>
 </html>

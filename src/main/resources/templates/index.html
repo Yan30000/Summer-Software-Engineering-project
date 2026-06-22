@@ -5,86 +5,58 @@
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-
-<div class="navbar">
-    <h2>SEPS</h2>
-    <div>
+<nav class="navbar">
+    <div class="brand">SEPS</div>
+    <div class="nav-links">
         <a href="/">Home</a>
-        <a href="/register">Register</a>
-        <a href="/login">Login</a>
-        <a href="/coach">Coach</a>
-        <a href="/player">Player</a>
+        <a th:if="${currentUser == null}" href="/login">Login</a>
+        <a th:if="${currentUser == null}" href="/register">Create Account</a>
+        <a th:if="${currentUser != null && currentUser.coach}" href="/coach">Coach Dashboard</a>
+        <a th:if="${currentUser != null && currentUser.player}" href="/player">Player Dashboard</a>
         <a th:if="${currentUser != null}" href="/logout">Logout</a>
     </div>
-</div>
+</nav>
 
-<div class="hero">
-    <h1>Sport Event Planner System</h1>
-    <p>
-        A professional web application that helps coaches create sport events, manage registration,
-        configure formations, assign players, handle substitutes, publish visual lineups, and allow
-        players to view their final position.
-    </p>
+<main>
+    <section class="hero">
+        <div class="hero-copy">
+            <span class="kicker">Sport Event Planner System</span>
+            <h1>Plan real sport events with Team A vs Team B lineups.</h1>
+            <p>Coaches create matches, choose the active match size, allow unlimited player registration, split players into two teams, manage substitutes, and publish a clean graphical lineup.</p>
+            <div class="button-row">
+                <a class="btn btn-primary" href="/register">Create Account</a>
+                <a class="btn btn-light" href="/login">Login</a>
+            </div>
+        </div>
+        <div class="hero-card field-preview-card">
+            <div class="field-preview-head"><span>Live Match</span><strong>Team A vs Team B</strong></div>
+            <div class="mini-field">
+                <div class="mini-team"><span>A1</span><span>A2</span><span>A3</span></div>
+                <div class="mini-vs">VS</div>
+                <div class="mini-team"><span>B1</span><span>B2</span><span>B3</span></div>
+            </div>
+            <div class="field-preview-foot"><span>Unlimited registration</span><span>Substitutes supported</span></div>
+        </div>
+    </section>
 
-    <a href="/register" class="btn btn-success">Create Account</a>
-    <a href="/login" class="btn">Login</a>
-</div>
-
-<div class="container">
-    <div class="grid">
-        <div class="card">
-            <h3>Coach Workflow</h3>
-            <p>
-                Create events, configure sport-specific formations, assign positions,
-                finalize lineups, publish lineups, and download lineup cards.
-            </p>
+    <section class="container">
+        <div class="cards-3">
+            <div class="card feature"><div class="icon">∞</div><h2>Unlimited Registration</h2><p>Players can register beyond the court limit. The limit only controls who plays actively.</p></div>
+            <div class="card feature"><div class="icon">VS</div><h2>Coach Chooses Match Size</h2><p>Coach can choose 1v1, 2v2, 5v5, 11v11, or any valid size for the sport.</p></div>
+            <div class="card feature"><div class="icon">▦</div><h2>Graphical Lineup</h2><p>Team A, Team B, player names, positions, and substitutes display professionally.</p></div>
         </div>
 
         <div class="card">
-            <h3>Player Workflow</h3>
-            <p>
-                Register, log in, browse events, search by coach name, register before deadline,
-                and view the published graphical lineup.
-            </p>
+            <div class="section-title"><span>Supported Sports</span><h2>Real Active Limits</h2></div>
+            <div class="limit-grid">
+                <div><strong>Soccer</strong><span>Max 11v11, 22 active players</span></div>
+                <div><strong>Basketball</strong><span>Max 5v5, 10 active players</span></div>
+                <div><strong>Volleyball</strong><span>Max 6v6, 12 active players</span></div>
+                <div><strong>Hockey</strong><span>Max 6v6, 12 active players</span></div>
+                <div><strong>Tennis</strong><span>Max 2v2, 4 active players</span></div>
+            </div>
         </div>
-
-        <div class="card">
-            <h3>Graphical Lineups</h3>
-            <p>
-                Sport-aware lineup boards are generated for soccer, basketball,
-                volleyball, hockey, and tennis.
-            </p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2>System Status</h2>
-
-        <p>
-            <strong>Total Registered Users:</strong>
-            <span th:text="${userCount}"></span>
-        </p>
-
-        <p>
-            <strong>Total Sport Events:</strong>
-            <span th:text="${eventCount}"></span>
-        </p>
-
-        <p th:if="${currentUser != null}">
-            Logged in as
-            <strong th:text="${currentUser.name}"></strong>
-            (<span th:text="${currentUser.role}"></span>)
-        </p>
-
-        <p th:if="${currentUser == null}" class="small-text">
-            Please register and log in to access coach or player features.
-        </p>
-    </div>
-</div>
-
-<div class="footer">
-    <p>CS2043 Software Engineering-I | SEPS Project Part 2</p>
-</div>
-
+    </section>
+</main>
 </body>
 </html>

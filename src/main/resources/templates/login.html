@@ -1,51 +1,20 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Login - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
+<head><title>Login - SEPS</title><link rel="stylesheet" href="/css/styles.css"></head>
 <body>
-
-<div class="navbar">
-    <h2>Login</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/register">Register</a>
-    </div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h1>Log In</h1>
-        <p>Enter your account details to continue.</p>
-
-        <div th:if="${error}" class="error" th:text="${error}"></div>
-        <div th:if="${success}" class="success" th:text="${success}"></div>
-
-        <form action="/login" method="post">
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email"
-                       id="email"
-                       name="email"
-                       placeholder="Example: john@example.com"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password"
-                       id="password"
-                       name="password"
-                       placeholder="Enter password"
-                       required>
-            </div>
-
-            <button type="submit" class="btn">Login</button>
-            <a href="/register" class="btn btn-secondary">Create Account</a>
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/">Home</a><a href="/register">Create Account</a></div></nav>
+<main class="auth-page">
+    <section class="auth-card">
+        <span class="kicker">Welcome Back</span><h1>Login</h1><p>Access your coach or player dashboard.</p>
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+        <form action="/login" method="post" class="form">
+            <label>Email Address</label><input type="email" name="email" required placeholder="email@example.com">
+            <label>Password</label><input type="password" name="password" required placeholder="Password">
+            <button class="btn btn-primary" type="submit">Login</button>
         </form>
-    </div>
-</div>
-
+        <div class="demo-box"><strong>Demo:</strong><br>Coach: coach@seps.com / 1234<br>Player: player@seps.com / 1234</div>
+        <p class="muted">No account? <a href="/register">Create one</a></p>
+    </section>
+</main>
 </body>
 </html>

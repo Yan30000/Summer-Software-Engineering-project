@@ -1,94 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Event Created - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
+<head><title>Event Created - SEPS</title><link rel="stylesheet" href="/css/styles.css"></head>
 <body>
-
-<div class="navbar">
-    <h2>Event Created</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/coach">Coach Dashboard</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h1>Sport Event Created Successfully</h1>
-
-        <div class="notice">
-            The event is now available for players to browse and register before the deadline.
-        </div>
-
-        <h2>Event Details</h2>
-
-        <p>
-            <strong>Event ID:</strong>
-            <span th:text="${event.eventId}"></span>
-        </p>
-
-        <p>
-            <strong>Coach:</strong>
-            <span th:text="${event.coachName}"></span>
-        </p>
-
-        <p>
-            <strong>Event Name:</strong>
-            <span th:text="${event.eventName}"></span>
-        </p>
-
-        <p>
-            <strong>Sport Type:</strong>
-            <span th:text="${event.sportType}"></span>
-        </p>
-
-        <p>
-            <strong>Event Date:</strong>
-            <span th:text="${event.eventDate}"></span>
-        </p>
-
-        <p>
-            <strong>Registration Deadline:</strong>
-            <span th:text="${event.registrationDeadLine}"></span>
-        </p>
-
-        <p>
-            <strong>Team:</strong>
-            <span th:text="${event.teamName}"></span>
-        </p>
-
-        <p>
-            <strong>Active Players:</strong>
-            <span th:text="${event.maxPlayers}"></span>
-        </p>
-
-        <p>
-            <strong>Formation:</strong>
-            <span th:text="${event.formationName}"></span>
-        </p>
-
-        <p>
-            <strong>Formation Note:</strong>
-            <span th:text="${event.formationDescription}"></span>
-        </p>
-
-        <p>
-            <strong>Status:</strong>
-            <span class="badge badge-open" th:text="${event.status}"></span>
-        </p>
-
-        <a th:href="@{'/coach/event/' + ${event.eventId}}" class="btn">
-            Manage Event
-        </a>
-
-        <a href="/coach" class="btn btn-secondary">
-            Back to Dashboard
-        </a>
-    </div>
-</div>
-
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/coach">Dashboard</a><a href="/coach/create-event">Create Event</a><a href="/logout">Logout</a></div></nav>
+<main class="container narrow">
+    <section class="card success-screen"><div class="success-icon">✓</div><span class="kicker">Event Created</span><h1>Match event created successfully</h1><p>Your event <strong th:text="${event.eventName}">Event</strong> is ready for player registration.</p>
+        <div class="mini-stats"><div><span>Sport</span><strong th:text="${event.sportType}"></strong></div><div><span>Format</span><strong th:text="${event.matchFormat}"></strong></div><div><span>Active</span><strong th:text="${event.selectedActivePlayers}"></strong></div><div><span>Max</span><strong th:text="${event.sportMaxActivePlayers}"></strong></div></div>
+        <div class="button-row center"><a class="btn btn-primary" th:href="@{'/coach/event/' + ${event.eventId}}">Manage Event</a><a class="btn btn-light" href="/coach">Dashboard</a></div>
+    </section>
+</main>
 </body>
 </html>

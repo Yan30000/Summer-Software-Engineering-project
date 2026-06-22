@@ -1,338 +1,63 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Manage Event - SEPS</title>
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/lineup-graphic.css">
-    <script src="/js/lineup-graphic.js" defer></script>
-</head>
+<head><title>Manage Event - SEPS</title><link rel="stylesheet" href="/css/styles.css"><link rel="stylesheet" href="/css/lineup-graphic.css"><script src="/js/lineup-graphic.js" defer></script></head>
 <body>
+<nav class="navbar"><div class="brand">SEPS</div><div class="nav-links"><a href="/coach">Dashboard</a><a href="/coach/create-event">Create Event</a><a href="/logout">Logout</a></div></nav>
+<main class="container">
+    <section class="page-header dark-header">
+        <div><span class="kicker light">Event Management</span><h1 th:text="${event.eventName}">Event</h1><p>Manage unlimited registration, active match size, Team A vs Team B, substitutes, and published lineup.</p><div class="meta-pills"><span th:text="${event.sportType}"></span><span th:text="${event.matchFormat}"></span><span th:text="${event.status}"></span></div></div>
+        <div class="dashboard-box"><div><span>Registered</span><strong th:text="${event.registeredCount}">0</strong></div><div><span>Active</span><strong th:text="${event.activeCount + '/' + event.selectedActivePlayers}">0/10</strong></div><div><span>Substitutes</span><strong th:text="${event.substituteCount}">0</strong></div></div>
+    </section>
 
-<div class="navbar">
-    <h2>Manage Event</h2>
-    <div>
-        <a href="/">Home</a>
-        <a href="/coach">Coach Dashboard</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h1 th:text="${event.eventName}"></h1>
-
-        <div class="grid-2">
-            <div>
-                <p>
-                    <strong>Sport:</strong>
-                    <span th:text="${event.sportType}"></span>
-                </p>
-
-                <p>
-                    <strong>Date:</strong>
-                    <span th:text="${event.eventDate}"></span>
-                </p>
-
-                <p>
-                    <strong>Deadline:</strong>
-                    <span th:text="${event.registrationDeadLine}"></span>
-                </p>
-
-                <p>
-                    <strong>Coach:</strong>
-                    <span th:text="${event.coachName}"></span>
-                </p>
-            </div>
-
-            <div>
-                <p>
-                    <strong>Team:</strong>
-                    <span th:text="${event.teamName}"></span>
-                </p>
-
-                <p>
-                    <strong>Active Players:</strong>
-                    <span th:text="${event.maxPlayers}"></span>
-                </p>
-
-                <p>
-                    <strong>Formation:</strong>
-                    <span th:text="${event.formationName}"></span>
-                </p>
-
-                <p>
-                    <strong>Status:</strong>
-                    <span class="badge badge-final"
-                          th:text="${event.status}">
-                    </span>
-                </p>
-            </div>
+    <section class="layout-2">
+        <div class="card">
+            <div class="section-title"><span>Match Settings</span><h2>Team Setup</h2></div>
+            <form th:action="@{'/coach/event/' + ${event.eventId} + '/settings'}" method="post" class="form">
+                <div class="form-row"><div><label>Team A</label><input name="teamAName" th:value="${event.teamAName}" th:disabled="${event.finalized}" required></div><div><label>Team B</label><input name="teamBName" th:value="${event.teamBName}" th:disabled="${event.finalized}" required></div></div>
+                <label>Active Match Size</label><select id="selectedPlayersPerTeam" name="selectedPlayersPerTeam" th:disabled="${event.finalized}" onchange="updateFormationOptions()"><option th:each="option : ${playersPerTeamOptions}" th:value="${option}" th:selected="${option == event.selectedPlayersPerTeam}" th:text="${option + 'v' + option + ' (' + (option*2) + ' active)'}"></option></select>
+                <div class="form-row"><div><label>Team A Formation</label><select id="teamAFormation" name="teamAFormation" th:disabled="${event.finalized}"><option th:each="f : ${formationOptions}" th:value="${f}" th:selected="${f == event.teamAFormation}" th:text="${f}"></option></select></div><div><label>Team B Formation</label><select id="teamBFormation" name="teamBFormation" th:disabled="${event.finalized}"><option th:each="f : ${formationOptions}" th:value="${f}" th:selected="${f == event.teamBFormation}" th:text="${f}"></option></select></div></div>
+                <label>Expected Players</label><input type="number" name="expectedPlayers" min="0" th:value="${event.expectedPlayers}" th:disabled="${event.finalized}">
+                <button class="btn btn-light" type="submit" th:disabled="${event.finalized}">Update Settings</button>
+            </form>
         </div>
-
-        <p class="notice">
-            <strong>Formation note:</strong>
-            <span th:text="${event.formationDescription}"></span>
-        </p>
-    </div>
-
-    <section class="graphic-card">
-        <div class="graphic-header">
-            <div>
-                <h2>Graphical Formation Preview</h2>
-                <p>
-                    Sport-aware visual lineup card for coach review,
-                    publishing, printing, and sharing.
-                </p>
+        <div class="card">
+            <div class="section-title"><span>Coach Controls</span><h2>Lineup Actions</h2></div>
+            <div class="action-grid">
+                <form th:action="@{'/coach/event/' + ${event.eventId} + '/auto-assign'}" method="post"><button class="btn btn-primary full" th:disabled="${event.finalized}">Auto Split Players</button></form>
+                <form th:action="@{'/coach/event/' + ${event.eventId} + '/clear-lineup'}" method="post"><button class="btn btn-light full" th:disabled="${event.finalized}">Clear Assignments</button></form>
+                <form th:action="@{'/coach/event/' + ${event.eventId} + '/finalize'}" method="post"><button class="btn btn-warning full">Finalize Lineup</button></form>
+                <form th:action="@{'/coach/event/' + ${event.eventId} + '/publish'}" method="post"><button class="btn btn-success full">Publish Lineup</button></form>
+                <form th:action="@{'/coach/event/' + ${event.eventId} + '/reopen'}" method="post"><button class="btn btn-danger full">Reopen Editing</button></form>
             </div>
-
-            <div class="graphic-actions">
-                <button type="button"
-                        class="graphic-btn"
-                        onclick="window.print()">
-                    Print Preview
-                </button>
-
-                <button type="button"
-                        class="graphic-btn secondary"
-                        onclick="downloadLineupCard()">
-                    Download Card
-                </button>
-
-                <button type="button"
-                        class="graphic-btn success"
-                        onclick="copyLineupSummary()">
-                    Copy Summary
-                </button>
-            </div>
-        </div>
-
-        <div class="lineup-preview-wrapper"
-             th:attr="data-sport=${event.sportType},
-                      data-formation-code=${event.formationCode},
-                      data-formation-name=${event.formationName},
-                      data-team=${event.teamName}">
-
-            <div class="lineupBoard"></div>
-
-            <div class="side-panel">
-                <div class="side-card">
-                    <h3>Starting Lineup</h3>
-                    <ol class="lineupList"></ol>
-                </div>
-
-                <div class="side-card">
-                    <h3>Substitutes</h3>
-                    <ul class="benchList"></ul>
-                </div>
-
-                <div class="side-card">
-                    <h3>Legend</h3>
-
-                    <div class="legend-box">
-                        <div class="legend-item">
-                            <span class="legend-chip starter"></span>
-                            Starting lineup
-                        </div>
-
-                        <div class="legend-item">
-                            <span class="legend-chip substitute"></span>
-                            Substitute / bench
-                        </div>
-
-                        <div class="legend-item">
-                            <span class="legend-chip open"></span>
-                            Unfilled slot
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div style="display:none">
-                <div th:each="registration : ${event.registrations}"
-                     class="lineup-data-row"
-                     th:attr="data-player-name=${registration.playerName},
-                              data-player-email=${registration.email},
-                              data-requested=${registration.requestedPosition},
-                              data-assigned=${registration.assignedPosition},
-                              data-status=${registration.selectionStatus}">
-                </div>
-            </div>
+            <p class="notice">Auto Split fills Team A and Team B evenly based on the selected format. Extra or odd players become substitutes.</p>
         </div>
     </section>
 
-    <div class="card" th:if="${event.finalized == false}">
-        <h2>Modify Formation</h2>
-
-        <form th:action="@{'/coach/event/' + ${event.eventId} + '/modify-formation'}"
-              method="post"
-              class="inline-form">
-
-            <div>
-                <label>Formation</label>
-
-                <select name="formationCode" required>
-                    <option th:each="formation : ${formationOptions}"
-                            th:if="${formation.sport == event.sportType}"
-                            th:value="${formation.code}"
-                            th:text="${formation.name}">
-                    </option>
-                </select>
-            </div>
-
-            <div>
-                <label>Active Players</label>
-
-                <input type="number"
-                       name="maxPlayers"
-                       min="1"
-                       max="20"
-                       th:value="${event.maxPlayers}"
-                       required>
-            </div>
-
-            <button type="submit" class="btn btn-warning">
-                Update Formation
-            </button>
-        </form>
-    </div>
-
-    <div class="card">
-        <h2>Registration Control</h2>
-
-        <form th:if="${event.registrationClosed == false && event.finalized == false}"
-              th:action="@{'/coach/event/' + ${event.eventId} + '/close-registration'}"
-              method="post">
-
-            <button type="submit" class="btn btn-danger">
-                Close Registration
-            </button>
-        </form>
-
-        <form th:if="${event.registrationClosed == true && event.finalized == false}"
-              th:action="@{'/coach/event/' + ${event.eventId} + '/open-registration'}"
-              method="post">
-
-            <button type="submit" class="btn btn-success">
-                Open Registration
-            </button>
-        </form>
-
-        <p th:if="${event.finalized}" class="notice">
-            Registration is locked because the lineup has been finalized.
-        </p>
-    </div>
-
-    <div class="card">
-        <h2>Registered Players</h2>
-
-        <p th:if="${event.registrations.size() == 0}" class="notice">
-            No players have registered yet.
-        </p>
-
-        <table th:if="${event.registrations.size() > 0}"
-               class="registered-players-table">
-
-            <thead>
-            <tr>
-                <th>Player</th>
-                <th>Email</th>
-                <th>Requested</th>
-                <th>Assigned</th>
-                <th>Status</th>
-                <th>Manual Assignment</th>
-            </tr>
-            </thead>
-
-            <tbody>
-            <tr th:each="registration : ${event.registrations}">
-                <td th:text="${registration.playerName}"></td>
-                <td th:text="${registration.email}"></td>
-                <td th:text="${registration.requestedPosition}"></td>
-                <td th:text="${registration.assignedPosition}"></td>
-
-                <td>
-                    <span th:if="${registration.selectionStatus == 'Registered'}"
-                          class="badge badge-wait"
-                          th:text="${registration.selectionStatus}">
-                    </span>
-
-                    <span th:if="${registration.selectionStatus == 'Selected'}"
-                          class="badge badge-open"
-                          th:text="${registration.selectionStatus}">
-                    </span>
-
-                    <span th:if="${registration.selectionStatus == 'Substitute'}"
-                          class="badge badge-sub"
-                          th:text="${registration.selectionStatus}">
-                    </span>
-                </td>
-
-                <td>
-                    <form th:if="${event.finalized == false}"
-                          th:action="@{'/coach/event/' + ${event.eventId} + '/assign/' + ${registration.registrationId}}"
-                          method="post">
-
-                        <select name="assignedPosition" required>
-                            <option th:each="position : ${positionOptions}"
-                                    th:value="${position}"
-                                    th:text="${position}">
-                            </option>
-
-                            <option value="Substitute">Substitute</option>
-                        </select>
-
-                        <select name="lineupRole" required>
-                            <option value="ACTIVE">Active Player</option>
-                            <option value="SUBSTITUTE">Substitute</option>
-                        </select>
-
-                        <button type="submit" class="btn btn-secondary">
-                            Assign
-                        </button>
-                    </form>
-
-                    <span th:if="${event.finalized}" class="small-text">
-                        Locked
-                    </span>
-                </td>
-            </tr>
-            </tbody>
-        </table>
-
-        <br>
-
-        <form th:if="${event.registrations.size() > 0 && event.finalized == false}"
-              th:action="@{'/coach/event/' + ${event.eventId} + '/auto-assign'}"
-              method="post">
-
-            <button type="submit" class="btn btn-secondary">
-                Auto Assign Lineup
-            </button>
-        </form>
-
-        <form th:if="${event.registrations.size() > 0 && event.finalized == false}"
-              th:action="@{'/coach/event/' + ${event.eventId} + '/finalize'}"
-              method="post">
-
-            <button type="submit" class="btn btn-success">
-                Finalize Lineup
-            </button>
-        </form>
-
-        <form th:if="${event.finalized && event.published == false}"
-              th:action="@{'/coach/event/' + ${event.eventId} + '/publish'}"
-              method="post">
-
-            <button type="submit" class="btn">
-                Publish Final Lineup
-            </button>
-        </form>
-
-        <div th:if="${event.published}" class="success">
-            Final lineup has been published and is visible to players.
+    <section class="card graphic-card">
+        <div class="section-title"><span>Graphical Match Lineup</span><h2 th:text="${event.teamAName + ' vs ' + event.teamBName}"></h2></div>
+        <div class="match-field">
+            <div class="team-side blue-side"><div class="team-heading"><h3 th:text="${event.teamAName}">Team A</h3><span th:text="${event.teamAFormation}"></span></div><div class="player-grid"><div class="player-token" th:each="p : ${teamAPlayers}"><span th:text="${#strings.substring(p.playerName,0,1)}"></span><strong th:text="${p.playerName}"></strong><small th:text="${p.assignedPosition}"></small></div><div class="empty-slot" th:each="s : ${#numbers.sequence(1, event.selectedPlayersPerTeam - teamAPlayers.size())}" th:if="${event.selectedPlayersPerTeam > teamAPlayers.size()}">Open Slot</div></div></div>
+            <div class="vs-circle">VS</div>
+            <div class="team-side green-side"><div class="team-heading"><h3 th:text="${event.teamBName}">Team B</h3><span th:text="${event.teamBFormation}"></span></div><div class="player-grid"><div class="player-token" th:each="p : ${teamBPlayers}"><span th:text="${#strings.substring(p.playerName,0,1)}"></span><strong th:text="${p.playerName}"></strong><small th:text="${p.assignedPosition}"></small></div><div class="empty-slot" th:each="s : ${#numbers.sequence(1, event.selectedPlayersPerTeam - teamBPlayers.size())}" th:if="${event.selectedPlayersPerTeam > teamBPlayers.size()}">Open Slot</div></div></div>
         </div>
-    </div>
-</div>
+    </section>
 
+    <section class="card">
+        <div class="section-title"><span>Manual Assignment</span><h2>Registered Players</h2></div>
+        <div th:if="${event.registrations.isEmpty()}" class="empty-state"><h3>No players registered yet</h3><p>Ask players to register from their Player Dashboard.</p></div>
+        <div class="table-wrap" th:if="${!event.registrations.isEmpty()}"><table><thead><tr><th>Player</th><th>Requested</th><th>Team</th><th>Assigned</th><th>Status</th><th>Assign</th></tr></thead><tbody><tr th:each="r : ${event.registrations}"><td><strong th:text="${r.playerName}"></strong></td><td th:text="${r.requestedPosition}"></td><td><span class="status-pill" th:text="${r.teamAssignment}"></span></td><td th:text="${r.assignedPosition}"></td><td th:text="${r.selectionStatus}"></td><td><form class="assign-form" th:action="@{'/coach/event/' + ${event.eventId} + '/assign/' + ${r.registrationId}}" method="post"><select name="teamAssignment" th:disabled="${event.finalized}"><option value="TEAM_A">Team A</option><option value="TEAM_B">Team B</option><option value="SUBSTITUTE">Substitute</option></select><select name="assignedPosition" th:disabled="${event.finalized}"><option th:each="pos : ${positionOptions}" th:value="${pos}" th:text="${pos}"></option></select><button class="btn btn-small btn-primary" th:disabled="${event.finalized}">Assign</button></form></td></tr></tbody></table></div>
+    </section>
+
+    <section class="cards-3">
+        <div class="card"><div class="section-title"><span>Team A</span><h2 th:text="${event.teamAName}"></h2></div><div class="roster-card" th:each="p : ${teamAPlayers}"><strong th:text="${p.playerName}"></strong><span th:text="${p.assignedPosition}"></span></div><p th:if="${teamAPlayers.isEmpty()}" class="muted">No Team A players.</p></div>
+        <div class="card"><div class="section-title"><span>Team B</span><h2 th:text="${event.teamBName}"></h2></div><div class="roster-card" th:each="p : ${teamBPlayers}"><strong th:text="${p.playerName}"></strong><span th:text="${p.assignedPosition}"></span></div><p th:if="${teamBPlayers.isEmpty()}" class="muted">No Team B players.</p></div>
+        <div class="card"><div class="section-title"><span>Bench</span><h2>Substitutes</h2></div><div class="roster-card sub" th:each="p : ${substitutes}"><strong th:text="${p.playerName}"></strong><span th:text="${p.requestedPosition}"></span></div><p th:if="${substitutes.isEmpty()}" class="muted">No substitutes.</p></div>
+    </section>
+</main>
+<script th:inline="javascript">
+const sport=/*[[${event.sportType}]]*/'Soccer'; const selected=/*[[${event.selectedPlayersPerTeam}]]*/5;
+const formations={Soccer:{1:['1 Player'],2:['1-1','2 Attackers'],3:['1-1-1','1-2'],4:['1-2-1','2-2'],5:['1-2-1','2-1-1','1-1-2'],6:['2-2-1','1-3-1','2-1-2'],7:['2-3-1','3-2-1'],8:['3-3-1','2-3-2'],9:['3-3-2','4-3-1'],10:['4-3-2'],11:['4-4-2','4-3-3','3-5-2']},Basketball:{1:['1 Guard'],2:['1-1'],3:['1-1-1'],4:['2-2'],5:['2-1-2','1-2-2']},Volleyball:{1:['1 Player'],2:['2 Player Rotation'],3:['3 Player Rotation'],4:['4 Player Rotation'],5:['5 Player Rotation'],6:['6 Player Rotation']},Hockey:{1:['1 Skater'],2:['1-1'],3:['1 Goalie - 2 Skaters'],4:['1-1-2'],5:['1-2-2'],6:['1-2-3']},Tennis:{1:['Singles'],2:['Doubles']}};
+function updateFormationOptions(){let n=parseInt(document.getElementById('selectedPlayersPerTeam').value);let fs=(formations[sport]&&formations[sport][n])||[n+' Players'];['teamAFormation','teamBFormation'].forEach(id=>{let el=document.getElementById(id); el.innerHTML=''; fs.forEach(f=>{let o=document.createElement('option'); o.value=f; o.textContent=f; el.appendChild(o);});});}
+</script>
 </body>
 </html>
